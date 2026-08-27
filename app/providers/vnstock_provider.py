@@ -31,20 +31,24 @@ class VnStockProvider:
         return Fundamental()
 
     def equity_ohlcv(self, symbol: str, start: str, end: str) -> pd.DataFrame:
-        return self.market.equity.ohlcv(symbol=symbol, start=start, end=end)
+        equity = self.market.equity(symbol)
+        return equity.ohlcv(start=start, end=end)
 
     def equity_quote(self, symbol: str) -> pd.DataFrame:
-        return self.market.equity.quote(symbol=symbol)
+        return self.market.quote(symbol)
 
     def company_info(self, symbol: str) -> pd.DataFrame:
-        return self.reference.company.info(symbol=symbol)
+        company = self.reference.company(symbol)
+        return company.info()
 
     def financial_statement(self, symbol: str, statement: str, period: str) -> pd.DataFrame:
-        loader = getattr(self.fundamental.equity, statement)
-        return loader(symbol=symbol, period=period)
+        equity = self.fundamental.equity(symbol)
+        loader = getattr(equity, statement)
+        return loader(period=period)
 
     def ratio(self, symbol: str, period: str) -> pd.DataFrame:
-        return self.fundamental.equity.ratio(symbol=symbol, period=period)
+        equity = self.fundamental.equity(symbol)
+        return equity.ratio(period=period)
 
 
 vnstock_provider = VnStockProvider()
