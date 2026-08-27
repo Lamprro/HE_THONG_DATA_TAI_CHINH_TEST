@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: financial-data-api-playground
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/v1/health
+    autoDeploy: true

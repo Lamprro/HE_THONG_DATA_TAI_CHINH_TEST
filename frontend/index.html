@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Financial Data API Playground</title>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  <style>
+    body { margin: 0; background: #f6f8fa; }
+    .topbar-custom { padding: 14px 24px; background: #111827; color: white; font-family: system-ui,sans-serif; display:flex; gap:20px; align-items:center; flex-wrap:wrap; }
+    .topbar-custom strong { font-size:18px; }
+    .topbar-custom input { min-width:320px; flex:1; padding:9px 11px; border-radius:8px; border:1px solid #4b5563; }
+    .topbar-custom button { padding:9px 14px; border:0; border-radius:8px; cursor:pointer; font-weight:700; }
+  </style>
+</head>
+<body>
+  <div class="topbar-custom">
+    <strong>Financial Data API Playground</strong>
+    <span>Backend:</span>
+    <input id="apiBase" placeholder="https://your-backend.example.com" />
+    <button id="apply">Kết nối</button>
+  </div>
+  <div id="swagger-ui"></div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const stored = localStorage.getItem('financial_api_base') || '';
+    const input = document.getElementById('apiBase');
+    input.value = params.get('api') || stored;
+
+    function loadSwagger() {
+      const base = input.value.trim().replace(/\/$/, '');
+      if (!base) {
+        document.getElementById('swagger-ui').innerHTML = '<div style="padding:40px;font-family:system-ui"><h2>Nhập Backend URL ở phía trên</h2><p>Ví dụ: https://your-backend.onrender.com</p></div>';
+        return;
+      }
+      localStorage.setItem('financial_api_base', base);
+      SwaggerUIBundle({
+        url: `${base}/openapi.json`,
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        tryItOutEnabled: true,
+        persistAuthorization: true,
+        requestInterceptor: req => req,
+        presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+        layout: 'BaseLayout'
+      });
+    }
+    document.getElementById('apply').onclick = loadSwagger;
+    loadSwagger();
+  </script>
+</body>
+</html>
