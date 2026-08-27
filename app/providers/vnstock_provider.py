@@ -1,6 +1,29 @@
 from __future__ import annotations
 
+import os
 from functools import cached_property
+from pathlib import Path
+
+# Vercel serverless functions can only write to /tmp. VnStock and some of its
+# dependencies may initialize user-level config/cache files under $HOME, so
+# redirect all writable runtime locations before importing vnstock.
+if os.getenv("VERCEL"):
+    runtime_home = Path("/tmp/vnstock-runtime")
+    config_home = runtime_home / ".config"
+    cache_home = runtime_home / ".cache"
+    data_home = runtime_home / ".local" / "share"
+    mpl_home = runtime_home / ".matplotlib"
+
+    for directory in (runtime_home, config_home, cache_home, data_home, mpl_home):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    os.environ["HOME"] = str(runtime_home)
+    os.environ["USERPROFILE"] = str(runtime_home)
+    os.environ["XDG_CONFIG_HOME"] = str(config_home)
+    os.environ["XDG_CACHE_HOME"] = str(cache_home)
+    os.environ["XDG_DATA_HOME"] = str(data_home)
+    os.environ["MPLCONFIGDIR"] = str(mpl_home)
+    os.environ["TMPDIR"] = "/tmp"
 
 import pandas as pd
 from vnstock import Fundamental, Market, Reference
