@@ -38,7 +38,14 @@ class VnStockProvider:
         adapter="python-library",
         status="active",
         auth_required=False,
-        capabilities=("ohlcv", "quote", "company", "financial_statements", "ratio"),
+        capabilities=(
+            "ohlcv",
+            "quote",
+            "company",
+            "company_news",
+            "financial_statements",
+            "ratio",
+        ),
     )
 
     @cached_property
@@ -63,6 +70,13 @@ class VnStockProvider:
     def company_info(self, symbol: str) -> pd.DataFrame:
         company = self.reference.company(symbol)
         return company.info()
+
+    def company_news(self, symbol: str) -> pd.DataFrame:
+        company = self.reference.company(symbol)
+        result = company.news()
+        if isinstance(result, pd.DataFrame):
+            return result
+        return pd.DataFrame(result or [])
 
     def financial_statement(self, symbol: str, statement: str, period: str) -> pd.DataFrame:
         equity = self.fundamental.equity(symbol)
