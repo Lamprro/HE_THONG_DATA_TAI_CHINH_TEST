@@ -448,3 +448,93 @@ def subsidiaries(
 
     except Exception as exc:
         raise provider_error(exc) from exc
+
+# =========================================================
+# NEWS / EVENTS
+# =========================================================
+# =========================================================
+# NEWS
+# =========================================================
+
+@router.get(
+    "/equities/{symbol}/news",
+    tags=["cafef-news"],
+    summary="Get CafeF company news",
+)
+def news(
+    symbol: str = Path(
+        ...,
+        examples=["FPT"],
+    ),
+    limit: int = Query(
+        100,
+        ge=1,
+        le=1000,
+    ),
+) -> dict:
+    ticker = normalize_symbol(symbol)
+    started = perf_counter()
+
+    try:
+        df = cafef_provider.news(
+            symbol=ticker,
+            limit=limit,
+        )
+
+        return response(
+            "news",
+            ticker,
+            df,
+            started,
+            limit=limit,
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as exc:
+        raise provider_error(exc) from exc
+
+
+# =========================================================
+# EVENTS
+# =========================================================
+
+@router.get(
+    "/equities/{symbol}/events",
+    tags=["cafef-events"],
+    summary="Get CafeF company events",
+)
+def events(
+    symbol: str = Path(
+        ...,
+        examples=["FPT"],
+    ),
+    limit: int = Query(
+        100,
+        ge=1,
+        le=1000,
+    ),
+) -> dict:
+    ticker = normalize_symbol(symbol)
+    started = perf_counter()
+
+    try:
+        df = cafef_provider.events(
+            symbol=ticker,
+            limit=limit,
+        )
+
+        return response(
+            "events",
+            ticker,
+            df,
+            started,
+            limit=limit,
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as exc:
+        raise provider_error(exc) from exc

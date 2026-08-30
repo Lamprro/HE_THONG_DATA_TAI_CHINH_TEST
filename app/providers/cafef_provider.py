@@ -1,5 +1,8 @@
 from __future__ import annotations
+import re
+from urllib.parse import urljoin
 
+from bs4 import BeautifulSoup
 from datetime import date, datetime, timedelta
 from io import StringIO
 
@@ -33,6 +36,8 @@ class CafeFProvider:
             "financial_statements",
             "management",
             "subsidiaries",
+            "news",
+            "events",
         ),
     )
 
@@ -470,5 +475,204 @@ class CafeFProvider:
             symbol=symbol,
             endpoint="CongTyCon",
         )
-    
+
+    # =========================================================
+    # NEWS / EVENTS
+    # =========================================================
+
+        # =========================================================
+    # NEWS / EVENTS
+    # =========================================================
+
+    def news_events(
+        self,
+        symbol: str,
+        limit: int = 100,
+    ) -> pd.DataFrame:
+        url = (
+            "https://cafef.vn/"
+            "du-lieu/Ajax/Events_RelatedNews_New.aspx"
+        )
+
+        page = 1
+        page_size = 30
+
+        rows: list[dict] = []
+
+        while len(rows) < limit:
+            response = self.client.get(
+                url,
+                params={
+                    "symbol": symbol.lower(),
+                    "configID": 0,
+                    "PageIndex": page,
+                    "PageSize": page_size,
+                    "Type": 1,
+                },
+                headers={
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Referer": (
+                        "https://cafef.vn/"
+                        f"du-lieu/tin-doanh-nghiep/"
+                        f"{symbol.lower()}/event.chn"
+                    ),
+                },
+            )
+
+            response.raise_for_status()
+
+            soup = BeautifulSoup(
+                response.text,
+                "html.parser",
+            )
+
+            items = soup.select(
+                "#divEvents li"
+            )
+
+            if not items:
+                break
+
+            added = 0
+
+            for item in items:
+                time_element = item.select_one(
+                    ".timeTitle"
+                )
+
+                link = item.select_one(
+                    "a.docnhanhTitle[href]"
+                )
+
+                if (
+                    time_element is None
+                    or link is None
+                ):
+                    continue
+
+                published_at = (
+                    time_element.get_text(
+                        " ",
+                        strip=True,
+                    )
+                )
+
+                title = (
+                    link.get("title")
+                    or link.get_text(
+                        " ",
+                        strip=True,
+                    )
+                )
+
+                href = link.get("href")
+
+                if not href:
+                    continue
+
+                article_url = urljoin(
+                    "https://cafef.vn/",
+                    href,
+                )
+
+                rows.append(
+                    {
+                        "symbol": symbol.upper(),
+                        "publishedAt": published_at,
+                        "title": title.strip(),
+                        "url": article_url,
+                    }
+                )
+
+                added += 1
+
+                if len(rows) >= limit:
+                    break
+
+            # Không parse được record nào nữa.
+            if added == 0:
+                break
+
+            # Trang cuối thường ít hơn page_size.
+            if len(items) < page_size:
+                break
+
+            page += 1
+
+        if not rows:
+            return pd.DataFrame(
+                columns=[
+                    "symbol",
+                    "publishedAt",
+                    "title",
+                    "url",
+                ]
+            )
+
+        df = pd.DataFrame(rows)
+
+        # Một số record có thể lặp giữa các page.
+        df = df.drop_duplicates(
+            subset=["url"],
+            keep="first",
+        )
+
+        return (
+            df.head(limit)
+            .reset_index(drop=True)
+        )
+
+    def news(
+        self,
+        symbol: str,
+        limit: int = 100,
+    ) -> pd.DataFrame:
+        # Lấy dư dữ liệu vì sau đó còn phải lọc event ra.
+        df = self.news_events(
+            symbol=symbol,
+            limit=min(limit * 3, 3000),
+        )
+
+        if df.empty:
+            return df
+
+        prefix = f"{symbol.upper()}:"
+
+        mask = ~df["title"].str.strip().str.upper().str.startswith(
+            prefix
+        )
+
+        result = df[mask].copy()
+
+        return (
+            result.head(limit)
+            .reset_index(drop=True)
+        )
+
+    def events(
+        self,
+        symbol: str,
+        limit: int = 100,
+    ) -> pd.DataFrame:
+        df = self.news_events(
+            symbol=symbol,
+            limit=min(limit * 3, 3000),
+        )
+
+        if df.empty:
+            return df
+
+        prefix = f"{symbol.upper()}:"
+
+        mask = df["title"].str.strip().str.upper().str.startswith(
+            prefix
+        )
+
+        result = df[mask].copy()
+
+        return (
+            result.head(limit)
+            .reset_index(drop=True)
+        )
+
 cafef_provider = CafeFProvider()
