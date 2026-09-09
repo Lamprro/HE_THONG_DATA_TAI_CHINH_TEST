@@ -6,3 +6,4 @@ venv/
 .vercel/
 .pytest_cache/
 .DS_Store
+database.sql
