@@ -6,12 +6,10 @@ from fastapi.responses import RedirectResponse
 
 from app.api.v1.cafef import router as cafef_router
 from app.api.v1.news import router as news_router
-from app.api.v1.news_pipeline import router as news_pipeline_router
 from app.api.v1.proxy import router as proxy_router
 from app.api.v1.system import router as system_router
 from app.api.v1.vndirect import router as vndirect_router
 from app.api.v1.vnstock import router as vnstock_router
-from app.news.scheduler import news_pipeline_scheduler
 
 TAGS = [
     {
@@ -61,7 +59,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="Financial Data & News API Playground",
-    version="0.5.0",
+    version="0.4.0",
     summary="Financial-data adapters plus transparent third-party API passthrough",
     description=(
         "Provider-oriented API playground for the AI Financial Data Analysis project. "
@@ -69,7 +67,7 @@ app = FastAPI(
         "third-party passthrough layer under /api/v1/proxy. This lets another backend "
         "call the Python service as middleware while receiving the upstream response "
         "without the Python service changing the response body structure."
-    ) + " The NEWS pipeline processes PASS validation results for raw_payloads with entity_type NEWS.",
+    ),
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
@@ -89,7 +87,6 @@ app.include_router(system_router, prefix="/api/v1")
 app.include_router(proxy_router, prefix="/api/v1/proxy")
 app.include_router(vnstock_router, prefix="/api/v1/vnstock")
 app.include_router(news_router, prefix="/api/v1/vnstock-news")
-app.include_router(news_pipeline_router, prefix="/api/v1")
 app.include_router(vndirect_router, prefix="/api/v1/vndirect")
 app.include_router(cafef_router, prefix="/api/v1/cafef")
 
