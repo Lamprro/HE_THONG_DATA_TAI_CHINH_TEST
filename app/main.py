@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
@@ -42,7 +44,18 @@ TAGS = [
         "name": "vnstock-news-crawler",
         "description": "Dedicated vnstock_news RSS/Sitemap crawler APIs. vnstock_news is a sponsor/private package and these endpoints become active when that package is installed in the runtime.",
     },
+    {
+        "name": "news-pipeline",
+        "description": "Persistent NEWS processing from validated raw payloads into news_articles.",
+    },
 ]
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await news_pipeline_scheduler.start()
+    yield
+    await news_pipeline_scheduler.stop()
+
 
 app = FastAPI(
     title="Financial Data & News API Playground",
@@ -59,6 +72,7 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json",
     openapi_tags=TAGS,
+    lifespan=lifespan,
 )
 
 app.add_middleware(

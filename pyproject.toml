@@ -12,6 +12,7 @@ dependencies = [
     "lxml>=5,<7",
     "html5lib>=1.1,<2",
     "beautifulsoup4>=4.12,<5",
+    "psycopg[binary]>=3.2,<4",
 ]
 
 [tool.vercel]
