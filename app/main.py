@@ -6,6 +6,7 @@ from app.api.v1.cafef import router as cafef_router
 from app.api.v1.news import router as news_router
 from app.api.v1.proxy import router as proxy_router
 from app.api.v1.system import router as system_router
+from app.api.v1.url_fetch import router as url_fetch_router
 from app.api.v1.vndirect import router as vndirect_router
 from app.api.v1.vnstock import router as vnstock_router
 
@@ -71,6 +72,7 @@ app.add_middleware(
 
 app.include_router(system_router, prefix="/api/v1")
 app.include_router(proxy_router, prefix="/api/v1/proxy")
+app.include_router(url_fetch_router, prefix="/api/v1/url-fetch")
 app.include_router(vnstock_router, prefix="/api/v1/vnstock")
 app.include_router(news_router, prefix="/api/v1/vnstock-news")
 app.include_router(vndirect_router, prefix="/api/v1/vndirect")
