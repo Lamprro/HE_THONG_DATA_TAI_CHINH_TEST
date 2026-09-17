@@ -37,15 +37,22 @@ def provider_error(exc: Exception) -> HTTPException:
 
 def response(dataset: str, symbol: str, data, started: float, **meta) -> dict:
     rows = dataframe_to_records(data)
+    retrieved_at = utc_now_iso()
     contract_meta = {}
     if dataset in MARKET_DATASETS:
-        rows = normalize_market_records("vnstock", dataset, symbol, rows)
+        rows = normalize_market_records(
+            "vnstock",
+            dataset,
+            symbol,
+            rows,
+            observed_at=retrieved_at,
+        )
         contract_meta = market_contract_metadata()
     return {
         "provider": "vnstock",
         "dataset": dataset,
         "symbol": symbol,
-        "retrieved_at": utc_now_iso(),
+        "retrieved_at": retrieved_at,
         "elapsed_ms": round((perf_counter() - started) * 1000, 2),
         "count": len(rows),
         **contract_meta,

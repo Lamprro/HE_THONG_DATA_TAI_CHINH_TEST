@@ -18,8 +18,12 @@ def market_contract_metadata() -> dict[str, Any]:
             "trading_value_unit": "VND",
             "volume_unit": "shares",
             "trading_timezone": "Asia/Ho_Chi_Minh",
-            "interval_code": "1d",
+            "interval_codes": {
+                "equity_ohlcv": "1d",
+                "equity_quote": "snapshot",
+            },
             "daily_timestamp_semantics": "start_of_trading_date",
+            "quote_timestamp_semantics": "retrieved_snapshot",
             "source_record_path": "data[].source_record",
         },
     }
@@ -30,6 +34,7 @@ def normalize_market_records(
     dataset: str,
     symbol: str,
     records: Sequence[Mapping[str, Any]],
+    observed_at: str | None = None,
 ) -> list[dict[str, Any]]:
     if dataset not in MARKET_DATASETS:
         return [dict(record) for record in records]
@@ -39,7 +44,7 @@ def normalize_market_records(
         raise ValueError(f"Unsupported market-data provider: {provider}")
 
     return [
-        _normalize_record(normalized_provider, dataset, symbol, record)
+        _normalize_record(normalized_provider, dataset, symbol, record, observed_at)
         for record in records
     ]
 
@@ -49,16 +54,18 @@ def _normalize_record(
     dataset: str,
     symbol: str,
     source: Mapping[str, Any],
+    observed_at: str | None,
 ) -> dict[str, Any]:
     if provider == "vnstock":
-        return _normalize_vnstock(dataset, symbol, source)
-    return _normalize_cafef(dataset, symbol, source)
+        return _normalize_vnstock(dataset, symbol, source, observed_at)
+    return _normalize_cafef(dataset, symbol, source, observed_at)
 
 
 def _normalize_vnstock(
     dataset: str,
     symbol: str,
     source: Mapping[str, Any],
+    observed_at: str | None,
 ) -> dict[str, Any]:
     price_multiplier = Decimal("1000") if dataset == "equity_ohlcv" else Decimal("1")
     trading_date = _parse_date(_first(source, "trading_date", "time", "date"))
@@ -84,6 +91,7 @@ def _normalize_vnstock(
         foreign_sell_volume=_scaled(_first(source, "foreign_sell_volume"), Decimal("1")),
         put_through_volume=None,
         put_through_value=None,
+        observed_at=observed_at,
         source=source,
     )
 
@@ -92,6 +100,7 @@ def _normalize_cafef(
     dataset: str,
     symbol: str,
     source: Mapping[str, Any],
+    observed_at: str | None,
 ) -> dict[str, Any]:
     # CafeF quote is the latest daily OHLCV row and uses the same units, but keep
     # the requested dataset name so downstream lineage still distinguishes the route.
@@ -118,6 +127,7 @@ def _normalize_cafef(
         foreign_sell_volume=None,
         put_through_volume=_scaled(_first(source, "KLThoaThuan"), Decimal("1")),
         put_through_value=_scaled(_first(source, "GtThoaThuan"), value_multiplier),
+        observed_at=observed_at,
         source=source,
     )
 
@@ -142,6 +152,7 @@ def _canonical_record(
     foreign_sell_volume: int | float | None,
     put_through_volume: int | float | None,
     put_through_value: int | float | None,
+    observed_at: str | None,
     source: Mapping[str, Any],
 ) -> dict[str, Any]:
     warnings: list[str] = []
@@ -151,17 +162,30 @@ def _canonical_record(
         warnings.append("missing_close_price")
 
     trading_date_text = trading_date.isoformat() if trading_date else None
-    price_timestamp = (
-        f"{trading_date_text}T00:00:00+07:00" if trading_date_text else None
-    )
+    if dataset == "equity_quote":
+        interval_code = "snapshot"
+        record_type = "QUOTE_SNAPSHOT"
+        price_timestamp = _parse_timestamp(observed_at)
+        timestamp_semantics = "retrieved_snapshot"
+        if price_timestamp is None:
+            warnings.append("missing_observed_at")
+    else:
+        interval_code = "1d"
+        record_type = "DAILY_CANDLE"
+        price_timestamp = (
+            f"{trading_date_text}T00:00:00+07:00" if trading_date_text else None
+        )
+        timestamp_semantics = "start_of_trading_date"
 
     return {
         "symbol": str(symbol).strip().upper(),
         "provider": provider,
         "dataset": dataset,
+        "record_type": record_type,
         "trading_date": trading_date_text,
         "price_timestamp": price_timestamp,
-        "interval_code": "1d",
+        "timestamp_semantics": timestamp_semantics,
+        "interval_code": interval_code,
         "currency": "VND",
         "open_price": open_price,
         "high_price": high_price,
@@ -227,3 +251,15 @@ def _parse_date(value: Any) -> date | None:
         except (ValueError, TypeError):
             continue
     return None
+
+
+def _parse_timestamp(value: Any) -> str | None:
+    if value is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.isoformat()
