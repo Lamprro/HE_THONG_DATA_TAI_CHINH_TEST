@@ -160,7 +160,10 @@ Quy ước:
 - mọi giá (`open_price`, `high_price`, `low_price`, `close_price`, ...) là VND;
 - `trading_value` là VND;
 - `volume` là số cổ phiếu khớp lệnh;
-- candle ngày dùng `interval_code = 1d`;
+- OHLCV ngày dùng `record_type = DAILY_CANDLE`, `interval_code = 1d` và
+  `price_timestamp` là đầu ngày giao dịch;
+- QUOTE dùng cùng danh sách field nhưng có `record_type = QUOTE_SNAPSHOT`,
+  `interval_code = snapshot` và `price_timestamp` là thời điểm Python lấy snapshot;
 - `trading_date` là ngày giao dịch, không phải ngày Python gọi upstream;
 - `price_timestamp` là đầu ngày giao dịch theo UTC+07:00 để tạo khóa ngày ổn định;
 - record nguyên bản của provider được giữ tại `source_record` để audit.
@@ -183,9 +186,10 @@ Ví dụ rút gọn:
   "data": [
     {
       "symbol": "FPT",
+      "record_type": "QUOTE_SNAPSHOT",
       "trading_date": "2026-08-28",
-      "price_timestamp": "2026-08-28T00:00:00+07:00",
-      "interval_code": "1d",
+      "price_timestamp": "2026-08-31T09:25:03+00:00",
+      "interval_code": "snapshot",
       "open_price": 72200,
       "high_price": 74000,
       "low_price": 72200,

@@ -119,12 +119,16 @@ Bốn endpoint `quote` và `ohlcv` của VnStock/CafeF trả cùng field và cù
 |---|---|
 | `schema_version` | `market_price.v1` |
 | `trading_date` | Ngày giao dịch `YYYY-MM-DD` |
-| `price_timestamp` | Đầu ngày giao dịch theo UTC+07:00 |
-| `interval_code` | `1d` |
+| `record_type` | `DAILY_CANDLE` hoặc `QUOTE_SNAPSHOT` |
+| `price_timestamp` | OHLCV: đầu ngày giao dịch; QUOTE: thời điểm lấy snapshot |
+| `interval_code` | OHLCV dùng `1d`; QUOTE dùng `snapshot` |
 | Các field giá | VND, không phải nghìn đồng |
 | `trading_value` | VND, không phải tỷ đồng |
 | `volume` | Số cổ phiếu khớp lệnh |
 | `source_record` | Record gốc để audit và xử lý field riêng của provider |
+
+QUOTE và OHLCV có chính xác cùng tập field để Java dùng chung DTO. Khác biệt nằm ở
+`record_type`, `interval_code` và ý nghĩa `price_timestamp`.
 
 Spring Boot nên reject/quarantine record có `normalization_warnings` khác rỗng,
 đặc biệt `missing_trading_date` hoặc `missing_close_price`. Không dùng

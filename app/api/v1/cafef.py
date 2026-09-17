@@ -56,16 +56,23 @@ def response(
     **meta,
 ) -> dict:
     rows = dataframe_to_records(data)
+    retrieved_at = utc_now_iso()
     contract_meta = {}
     if dataset in MARKET_DATASETS:
-        rows = normalize_market_records("cafef", dataset, symbol, rows)
+        rows = normalize_market_records(
+            "cafef",
+            dataset,
+            symbol,
+            rows,
+            observed_at=retrieved_at,
+        )
         contract_meta = market_contract_metadata()
 
     return {
         "provider": "cafef",
         "dataset": dataset,
         "symbol": symbol,
-        "retrieved_at": utc_now_iso(),
+        "retrieved_at": retrieved_at,
         "elapsed_ms": round(
             (perf_counter() - started) * 1000,
             2,
