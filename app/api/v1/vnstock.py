@@ -6,6 +6,11 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Path, Query
 
+from app.core.market_normalization import (
+    MARKET_DATASETS,
+    market_contract_metadata,
+    normalize_market_records,
+)
 from app.core.serialization import dataframe_to_records, utc_now_iso
 from app.providers.vnstock_provider import vnstock_provider
 
@@ -50,6 +55,10 @@ def provider_error(exc: Exception) -> HTTPException:
 
 def response(dataset: str, symbol: str, data, started: float, **meta) -> dict:
     rows = dataframe_to_records(data)
+    contract_meta = {}
+    if dataset in MARKET_DATASETS:
+        rows = normalize_market_records("vnstock", dataset, symbol, rows)
+        contract_meta = market_contract_metadata()
     return {
         "provider": "vnstock",
         "dataset": dataset,
@@ -57,6 +66,7 @@ def response(dataset: str, symbol: str, data, started: float, **meta) -> dict:
         "retrieved_at": utc_now_iso(),
         "elapsed_ms": round((perf_counter() - started) * 1000, 2),
         "count": len(rows),
+        **contract_meta,
         **meta,
         "data": rows,
     }
@@ -66,7 +76,11 @@ def response(dataset: str, symbol: str, data, started: float, **meta) -> dict:
     "/equities/{symbol}/ohlcv",
     tags=["vnstock-market"],
     summary="Get historical OHLCV",
-    description="Historical open/high/low/close/volume data. Defaults to the latest 30 calendar days.",
+    description=(
+        "Historical daily OHLCV normalized to the market_price.v1 contract. "
+        "Prices and trading values use VND; the original provider row is retained "
+        "under source_record. Defaults to the latest 30 calendar days."
+    ),
 )
 def equity_ohlcv(
     symbol: str = Path(..., examples=["FPT"]),
@@ -102,6 +116,10 @@ def equity_ohlcv(
     "/equities/{symbol}/quote",
     tags=["vnstock-market"],
     summary="Get current equity quote",
+    description=(
+        "Latest quote normalized to market_price.v1. The provider adapter enriches "
+        "the quote with the latest trading date when VnStock omits it."
+    ),
 )
 def equity_quote(symbol: str = Path(..., examples=["FPT"])) -> dict:
     ticker = normalize_symbol(symbol)

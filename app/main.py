@@ -66,11 +66,11 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title="Financial Data & News API Playground",
     version="0.5.0",
-    summary="Financial-data adapters plus transparent third-party API passthrough",
+    summary="Normalized financial-data adapters plus transparent third-party passthrough",
     description=(
         "Provider-oriented API playground for the AI Financial Data Analysis project. "
-        "V0.5 keeps the existing normalized provider APIs, adds daily market-index "
-        "prices and constituents, and retains the allowlisted third-party passthrough "
+        "V0.5 provides market_price.v1 for VnStock and CafeF, market-index "
+        "prices and constituents, and an allowlisted third-party passthrough "
         "layer under /api/v1/proxy. This lets another backend "
         "call the Python service as middleware while receiving the upstream response "
         "without the Python service changing the response body structure."

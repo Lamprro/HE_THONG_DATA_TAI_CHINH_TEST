@@ -145,6 +145,59 @@ Các endpoint cũ vẫn giữ nguyên để không phá code hiện tại, ví d
 
 Nhóm API này có thể chuẩn hóa/merge/transform data. Nếu caller cần **response y nguyên của API thứ ba**, dùng `/api/v1/proxy/...`.
 
+### Contract giá thống nhất cho Spring Boot
+
+Các endpoint market normalized của VnStock và CafeF dùng chung schema
+`market_price.v1`:
+
+- `GET /api/v1/vnstock/equities/{symbol}/ohlcv`
+- `GET /api/v1/vnstock/equities/{symbol}/quote`
+- `GET /api/v1/cafef/equities/{symbol}/ohlcv`
+- `GET /api/v1/cafef/equities/{symbol}/quote`
+
+Quy ước:
+
+- mọi giá (`open_price`, `high_price`, `low_price`, `close_price`, ...) là VND;
+- `trading_value` là VND;
+- `volume` là số cổ phiếu khớp lệnh;
+- candle ngày dùng `interval_code = 1d`;
+- `trading_date` là ngày giao dịch, không phải ngày Python gọi upstream;
+- `price_timestamp` là đầu ngày giao dịch theo UTC+07:00 để tạo khóa ngày ổn định;
+- record nguyên bản của provider được giữ tại `source_record` để audit.
+
+Ví dụ rút gọn:
+
+```json
+{
+  "provider": "cafef",
+  "dataset": "equity_quote",
+  "schema_version": "market_price.v1",
+  "normalization": {
+    "currency": "VND",
+    "price_unit": "VND",
+    "trading_value_unit": "VND",
+    "volume_unit": "shares",
+    "trading_timezone": "Asia/Ho_Chi_Minh",
+    "interval_code": "1d"
+  },
+  "data": [
+    {
+      "symbol": "FPT",
+      "trading_date": "2026-08-28",
+      "price_timestamp": "2026-08-28T00:00:00+07:00",
+      "interval_code": "1d",
+      "open_price": 72200,
+      "high_price": 74000,
+      "low_price": 72200,
+      "close_price": 73200,
+      "volume": 10196800,
+      "trading_value": 749760000000,
+      "source_record": {}
+    }
+  ]
+}
+```
+
 ## Local backend
 
 ```bash
