@@ -16,7 +16,7 @@ def health() -> dict:
     return {
         "status": "ok",
         "service": "financial-data-api-playground",
-        "version": "0.4.0",
+        "version": "0.5.0",
         "proxy_mode": "allowlisted-passthrough",
     }
 

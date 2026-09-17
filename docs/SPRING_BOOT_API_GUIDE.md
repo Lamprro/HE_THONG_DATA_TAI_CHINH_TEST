@@ -2,7 +2,7 @@
 
 > Tài liệu dành cho Java Spring Boot gọi Financial Data Python/FastAPI service.
 >
-> Cập nhật theo source code FastAPI `v0.4.0` trên nhánh `main`.
+> Cập nhật theo source code FastAPI `v0.5.0`.
 
 ## 1. Base URL
 
@@ -56,12 +56,13 @@ Response mong đợi với source hiện tại:
 {
   "status": "ok",
   "service": "financial-data-api-playground",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "proxy_mode": "allowlisted-passthrough"
 }
 ```
 
-Nếu production chưa trả `version = 0.4.0`, có nghĩa deployment Vercel đang chạy code cũ hơn source GitHub hiện tại. Khi đó một số endpoint mới, đặc biệt `/api/v1/proxy/...`, có thể trả `404`.
+Nếu production chưa trả `version = 0.5.0`, deployment chưa có contract giá
+`market_price.v1`. Khi đó VnStock và CafeF vẫn có thể trả tên trường và đơn vị khác nhau.
 
 ### 2.2 Danh sách provider nghiệp vụ
 
@@ -109,6 +110,25 @@ Response thường có dạng:
 ```
 
 Đây là nhóm nên dùng khi Spring Boot muốn một API nghiệp vụ ổn định, dễ map DTO.
+
+### 3.1.1 Contract `market_price.v1`
+
+Bốn endpoint `quote` và `ohlcv` của VnStock/CafeF trả cùng field và cùng đơn vị:
+
+| Field | Quy ước |
+|---|---|
+| `schema_version` | `market_price.v1` |
+| `trading_date` | Ngày giao dịch `YYYY-MM-DD` |
+| `price_timestamp` | Đầu ngày giao dịch theo UTC+07:00 |
+| `interval_code` | `1d` |
+| Các field giá | VND, không phải nghìn đồng |
+| `trading_value` | VND, không phải tỷ đồng |
+| `volume` | Số cổ phiếu khớp lệnh |
+| `source_record` | Record gốc để audit và xử lý field riêng của provider |
+
+Spring Boot nên reject/quarantine record có `normalization_warnings` khác rỗng,
+đặc biệt `missing_trading_date` hoặc `missing_close_price`. Không dùng
+`retrieved_at` thay cho `price_timestamp`: `retrieved_at` chỉ là lúc Python gọi nguồn.
 
 ## 3.2 Raw passthrough proxy
 
@@ -1075,4 +1095,4 @@ Nếu tài liệu này và Swagger khác nhau, kiểm tra theo thứ tự:
 2. `app/api/v1/*.py` để biết path/query params thực tế.
 3. `/openapi.json` hoặc `/docs` của deployment đang chạy để biết deployment production hiện tại đã nhận version code nào.
 
-Tài liệu này mô tả source FastAPI `v0.4.0` hiện tại trong repository.
+Tài liệu này mô tả source FastAPI `v0.5.0` hiện tại trong repository.

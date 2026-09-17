@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import os
+from datetime import date, timedelta
 from functools import cached_property
 from pathlib import Path
 
@@ -29,6 +31,9 @@ import pandas as pd
 from vnstock import Fundamental, Market, Reference
 
 from app.providers.base import ProviderInfo
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class VnStockProvider:
@@ -65,7 +70,37 @@ class VnStockProvider:
         return equity.ohlcv(start=start, end=end)
 
     def equity_quote(self, symbol: str) -> pd.DataFrame:
-        return self.market.quote(symbol)
+        quote = self.market.quote(symbol)
+        if quote is None or quote.empty:
+            return quote
+
+        date_columns = {"time", "date", "trading_date"}
+        if date_columns.intersection(quote.columns):
+            return quote
+
+        # VnStock quote rows may omit the trading session date. Resolve it from
+        # the daily series instead of allowing callers to treat retrieved_at as
+        # the market timestamp (which is incorrect on weekends and holidays).
+        try:
+            end_date = date.today()
+            start_date = end_date - timedelta(days=14)
+            history = self.market.equity(symbol).ohlcv(
+                start=start_date.isoformat(),
+                end=end_date.isoformat(),
+            )
+            if history is not None and not history.empty and "time" in history.columns:
+                valid_times = history["time"].dropna()
+                if not valid_times.empty:
+                    quote = quote.copy()
+                    quote["trading_date"] = valid_times.max()
+        except Exception as exc:  # Quote is still useful; expose a warning downstream.
+            LOGGER.warning(
+                "Unable to resolve latest VnStock trading date for %s: %s",
+                symbol,
+                exc,
+            )
+
+        return quote
 
     def company_info(self, symbol: str) -> pd.DataFrame:
         company = self.reference.company(symbol)
