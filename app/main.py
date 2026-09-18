@@ -31,6 +31,10 @@ TAGS = [
         "description": "Vietnam equity market data via VnStock Unified UI v4.",
     },
     {
+        "name": "vnstock-index",
+        "description": "Daily index levels and index constituents via VnStock Unified UI v4.",
+    },
+    {
         "name": "vnstock-company",
         "description": "Company reference/profile data via VnStock.",
     },
@@ -61,12 +65,13 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="Financial Data & News API Playground",
-    version="0.4.0",
+    version="0.5.0",
     summary="Financial-data adapters plus transparent third-party API passthrough",
     description=(
         "Provider-oriented API playground for the AI Financial Data Analysis project. "
-        "V0.4 keeps the existing normalized provider APIs and adds an allowlisted "
-        "third-party passthrough layer under /api/v1/proxy. This lets another backend "
+        "V0.5 keeps the existing normalized provider APIs, adds daily market-index "
+        "prices and constituents, and retains the allowlisted third-party passthrough "
+        "layer under /api/v1/proxy. This lets another backend "
         "call the Python service as middleware while receiving the upstream response "
         "without the Python service changing the response body structure."
     ),
