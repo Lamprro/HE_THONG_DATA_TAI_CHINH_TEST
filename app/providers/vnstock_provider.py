@@ -45,6 +45,9 @@ class VnStockProvider:
             "company_news",
             "financial_statements",
             "ratio",
+            "index_ohlcv",
+            "index_latest",
+            "index_members",
         ),
     )
 
@@ -66,6 +69,50 @@ class VnStockProvider:
 
     def equity_quote(self, symbol: str) -> pd.DataFrame:
         return self.market.quote(symbol)
+
+    def index_ohlcv(
+        self,
+        index_code: str,
+        start: str,
+        end: str,
+        interval: str = "1D",
+        source: str = "kbs",
+    ) -> pd.DataFrame:
+        market_index = self.market.index(index_code)
+        return market_index.ohlcv(
+            start=start,
+            end=end,
+            interval=interval,
+            source=source,
+        )
+
+    def index_latest(
+        self,
+        index_code: str,
+        start: str,
+        end: str,
+        source: str = "kbs",
+    ) -> pd.DataFrame:
+        df = self.index_ohlcv(index_code, start, end, "1D", source)
+        if df.empty:
+            return df
+
+        for column in ("time", "date", "trading_date", "tradingDate"):
+            if column not in df.columns:
+                continue
+            timestamps = pd.to_datetime(df[column], errors="coerce")
+            if timestamps.notna().any():
+                return df.loc[[timestamps.idxmax()]].reset_index(drop=True)
+
+        # VnStock normally returns daily bars in chronological order. Keep a
+        # deterministic fallback if a connector changes/omits its date column.
+        return df.tail(1).reset_index(drop=True)
+
+    def index_members(self, index_code: str, source: str = "kbs") -> pd.DataFrame:
+        result = self.reference.index.members(index_code, source=source)
+        if isinstance(result, pd.DataFrame):
+            return result
+        return pd.DataFrame(result or [])
 
     def company_info(self, symbol: str) -> pd.DataFrame:
         company = self.reference.company(symbol)
