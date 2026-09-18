@@ -21,6 +21,13 @@
     .connector input { min-width:320px; flex:1; padding:9px 11px; border-radius:8px; border:1px solid #9ca3af; background:white; }
     .connector button { padding:9px 14px; border:0; border-radius:8px; cursor:pointer; font-weight:700; background:#2563eb; color:white; }
     .note { padding:10px 24px; background:#fff7ed; color:#9a3412; border-bottom:1px solid #fed7aa; font-size:13px; }
+    .endpoint-guide { max-width:1500px; margin:16px auto 0; padding:0 24px; }
+    .endpoint-guide h2 { margin:0 0 10px; color:#111827; font-size:17px; }
+    .endpoint-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:10px; }
+    .endpoint-card { padding:12px 14px; border:1px solid #d1d5db; border-radius:10px; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.05); }
+    .endpoint-card strong { display:block; margin-bottom:5px; color:#065f46; font-size:13px; }
+    .endpoint-card code { display:block; overflow-wrap:anywhere; color:#1f2937; font-size:12px; }
+    .endpoint-card span { display:block; margin-top:7px; color:#6b7280; font-size:12px; line-height:1.4; }
     #swagger-ui { max-width: 1500px; margin: 0 auto; }
   </style>
 </head>
@@ -30,6 +37,7 @@
     <p>Test dữ liệu tài chính và tin tức trực tiếp như Postman bằng Swagger UI.</p>
     <div class="chips">
       <span class="chip active">VnStock Market</span>
+      <span class="chip active">VnStock Index</span>
       <span class="chip active">VnStock Fundamental</span>
       <span class="chip active">Company News</span>
       <span class="chip optional">vnstock_news Sponsor Crawler</span>
@@ -45,8 +53,34 @@
   </div>
 
   <div class="note">
-    Nhóm <b>vnstock-news-community</b> dùng VnStock community để lấy tin theo mã cổ phiếu. Nhóm <b>vnstock-news-crawler</b> là adapter riêng cho gói sponsor/private vnstock_news; endpoint /status cho biết package có sẵn trên runtime hay chưa.
+    Nhóm <b>vnstock-index</b> hỗ trợ VNINDEX, VN30 và HNXINDEX. Endpoint <b>/latest</b> trả về nến ngày hoàn chỉnh mới nhất có sẵn, không phải giá realtime. Nhóm <b>vnstock-news-community</b> dùng VnStock community để lấy tin theo mã cổ phiếu.
   </div>
+
+  <section class="endpoint-guide">
+    <h2>API chỉ số mới — mở nhóm vnstock-index bên dưới để Try it out</h2>
+    <div class="endpoint-grid">
+      <div class="endpoint-card">
+        <strong>Danh mục chỉ số</strong>
+        <code>GET /api/v1/vnstock/indices</code>
+        <span>Liệt kê các mã chỉ số đang được hệ thống hỗ trợ.</span>
+      </div>
+      <div class="endpoint-card">
+        <strong>Lịch sử cuối ngày</strong>
+        <code>GET /api/v1/vnstock/indices/{index_code}/ohlcv</code>
+        <span>Nhập start/end để kiểm thử dữ liệu OHLCV dùng cho job hằng ngày.</span>
+      </div>
+      <div class="endpoint-card">
+        <strong>Phiên hoàn chỉnh gần nhất</strong>
+        <code>GET /api/v1/vnstock/indices/{index_code}/latest</code>
+        <span>Dùng để kiểm tra nhanh dữ liệu kết phiên gần nhất provider đang có.</span>
+      </div>
+      <div class="endpoint-card">
+        <strong>Thành phần rổ</strong>
+        <code>GET /api/v1/vnstock/indices/{index_code}/members</code>
+        <span>Dữ liệu đầu vào cho security_index_memberships.</span>
+      </div>
+    </div>
+  </section>
 
   <div id="swagger-ui"></div>
 
