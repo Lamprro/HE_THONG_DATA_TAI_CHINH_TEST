@@ -15,13 +15,3 @@ class NewsArticle:
     published_at: datetime | None
     external_id: str | None
     metadata: dict
-
-
-@dataclass(frozen=True)
-class RawNewsPayload:
-    id: str
-    data_source_id: int
-    source_url: str | None
-    payload: object
-    raw_text: str | None
-    published_at: datetime | None

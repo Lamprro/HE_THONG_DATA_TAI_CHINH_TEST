@@ -1,5 +1,3 @@
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
@@ -10,8 +8,7 @@ from app.api.v1.proxy import router as proxy_router
 from app.api.v1.system import router as system_router
 from app.api.v1.vndirect import router as vndirect_router
 from app.api.v1.vnstock import router as vnstock_router
-from app.api.v1.news_pipeline import router as news_pipeline_router
-from app.news.scheduler import news_pipeline_scheduler
+from app.api.v1.url_fetch import router as url_fetch_router
 
 TAGS = [
     {
@@ -51,17 +48,10 @@ TAGS = [
         "description": "Dedicated vnstock_news RSS/Sitemap crawler APIs. vnstock_news is a sponsor/private package and these endpoints become active when that package is installed in the runtime.",
     },
     {
-        "name": "news-pipeline",
-        "description": "Persistent NEWS processing from validated raw payloads into news_articles.",
+        "name": "news-fetch",
+        "description": "Stateless retrieval of approved publisher pages for the calling backend.",
     },
 ]
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    await news_pipeline_scheduler.start()
-    yield
-    await news_pipeline_scheduler.stop()
-
 
 app = FastAPI(
     title="Financial Data & News API Playground",
@@ -79,7 +69,6 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json",
     openapi_tags=TAGS,
-    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -96,7 +85,7 @@ app.include_router(vnstock_router, prefix="/api/v1/vnstock")
 app.include_router(news_router, prefix="/api/v1/vnstock-news")
 app.include_router(vndirect_router, prefix="/api/v1/vndirect")
 app.include_router(cafef_router, prefix="/api/v1/cafef")
-app.include_router(news_pipeline_router, prefix="/api/v1")
+app.include_router(url_fetch_router, prefix="/api/v1")
 
 
 @app.get("/", include_in_schema=False)

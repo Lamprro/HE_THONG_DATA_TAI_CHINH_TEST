@@ -1,1 +1,1 @@
-"""Validated raw NEWS payload processing pipeline."""
+"""Stateless news source adapters."""
