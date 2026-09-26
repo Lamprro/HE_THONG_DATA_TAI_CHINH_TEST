@@ -2,6 +2,7 @@
 
 ## What was added
 
+- `GET /api/v1/url-fetch?url=...`: Spring Boot NEWS_DATA_FETCH compatibility endpoint. It fetches only registered article-source hosts, validates every redirect before following it, and returns the source HTTP status/content type/body for downstream validation.
 - `app/news/sources.py`: source-adapter contract plus the first `CafeFNewsSource`. It downloads an article URL, strips non-content HTML and maps its title, sapo, body, author, publication time and CafeF article ID to a normalized article. Add another publisher by implementing `NewsSource` and registering it in `NewsSourceRegistry`; no pipeline or API route changes are required.
 - `app/news/service.py`: selects `raw_payloads` with `entity_type = NEWS` only when at least one associated `validation_results.result_status = PASS`, obtains URLs from `source_url`, JSON `payload` and JSON `raw_text`, deduplicates by SHA-256 canonical URL, and inserts into `news_articles`.
 - `app/news/company_matcher.py`: deterministic ticker/company-alias matching from `companies`, `company_aliases`, and `securities` into `news_article_companies`. New articles are matched immediately after insertion.

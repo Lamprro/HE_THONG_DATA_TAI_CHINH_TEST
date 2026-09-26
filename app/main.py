@@ -11,6 +11,7 @@ from app.api.v1.system import router as system_router
 from app.api.v1.vndirect import router as vndirect_router
 from app.api.v1.vnstock import router as vnstock_router
 from app.api.v1.news_pipeline import router as news_pipeline_router
+from app.api.v1.url_fetch import router as url_fetch_router
 from app.news.scheduler import news_pipeline_scheduler
 
 TAGS = [
@@ -97,6 +98,7 @@ app.include_router(news_router, prefix="/api/v1/vnstock-news")
 app.include_router(vndirect_router, prefix="/api/v1/vndirect")
 app.include_router(cafef_router, prefix="/api/v1/cafef")
 app.include_router(news_pipeline_router, prefix="/api/v1")
+app.include_router(url_fetch_router, prefix="/api/v1")
 
 
 @app.get("/", include_in_schema=False)
