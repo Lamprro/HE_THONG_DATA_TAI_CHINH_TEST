@@ -61,8 +61,10 @@ Response mong đợi với source hiện tại:
 }
 ```
 
-Nếu production chưa trả `version = 0.5.0`, deployment chưa có contract giá
-`market_price.v1`. Khi đó VnStock và CafeF vẫn có thể trả tên trường và đơn vị khác nhau.
+Không suy ra contract giá chỉ từ `version`: kiểm tra `schema_version` trong chính
+response QUOTE/OHLCV. Nếu thiếu `market_price.v1`, đó là payload legacy từ bản
+deploy cũ; Spring Boot phải dùng parser legacy hoặc dừng nạp dữ liệu, không được
+coi đơn vị giá đã chuẩn hóa.
 
 ### 2.2 Danh sách provider nghiệp vụ
 
@@ -113,7 +115,11 @@ Response thường có dạng:
 
 ### 3.1.1 Contract `market_price.v1`
 
-Bốn endpoint `quote` và `ohlcv` của VnStock/CafeF trả cùng field và cùng đơn vị:
+Sáu endpoint `quote` và `ohlcv` của VnStock, VNDirect và CafeF trả cùng field và cùng đơn vị:
+
+Quy ước này chỉ có hiệu lực sau khi phiên bản chứa thay đổi chuẩn hóa được
+triển khai. Bản API đang chạy có thể vẫn trả payload VNDirect gốc; xác nhận bằng
+`schema_version` của từng response trước khi map vào DTO chung.
 
 | Field | Quy ước |
 |---|---|

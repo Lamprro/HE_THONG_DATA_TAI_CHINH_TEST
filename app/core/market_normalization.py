@@ -40,7 +40,7 @@ def normalize_market_records(
         return [dict(record) for record in records]
 
     normalized_provider = provider.strip().lower()
-    if normalized_provider not in {"vnstock", "cafef"}:
+    if normalized_provider not in {"vnstock", "vndirect", "cafef"}:
         raise ValueError(f"Unsupported market-data provider: {provider}")
 
     return [
@@ -56,9 +56,16 @@ def _normalize_record(
     source: Mapping[str, Any],
     observed_at: str | None,
 ) -> dict[str, Any]:
+    source_symbol = _first(source, "symbol", "Symbol", "code", "ticker")
+    if source_symbol is not None and str(source_symbol).strip().upper() != symbol.strip().upper():
+        raise ValueError(
+            f"{provider} {dataset}: row symbol {source_symbol!r} does not match {symbol}"
+        )
     if provider == "vnstock":
         return _normalize_vnstock(dataset, symbol, source, observed_at)
-    return _normalize_cafef(dataset, symbol, source, observed_at)
+    if provider == "cafef":
+        return _normalize_cafef(dataset, symbol, source, observed_at)
+    return _normalize_vndirect(dataset, symbol, source, observed_at)
 
 
 def _normalize_vnstock(
@@ -132,6 +139,40 @@ def _normalize_cafef(
     )
 
 
+def _normalize_vndirect(
+    dataset: str,
+    symbol: str,
+    source: Mapping[str, Any],
+    observed_at: str | None,
+) -> dict[str, Any]:
+    # VNDirect market prices are in thousands of VND; nmValue/ptValue are VND.
+    price_multiplier = Decimal("1000")
+    trading_date = _parse_date(_first(source, "trading_date", "date", "Ngay", "time"))
+
+    return _canonical_record(
+        provider="vndirect",
+        dataset=dataset,
+        symbol=_first(source, "symbol", "code", "ticker") or symbol,
+        trading_date=trading_date,
+        open_price=_scaled(_first(source, "open_price", "open", "adOpen"), price_multiplier),
+        high_price=_scaled(_first(source, "high_price", "high", "adHigh"), price_multiplier),
+        low_price=_scaled(_first(source, "low_price", "low", "adLow"), price_multiplier),
+        close_price=_scaled(_first(source, "close_price", "close", "price", "adClose"), price_multiplier),
+        adjusted_close=_scaled(_first(source, "adjusted_close", "adClose"), price_multiplier),
+        reference_price=_scaled(_first(source, "reference_price", "basicPrice"), price_multiplier),
+        ceiling_price=_scaled(_first(source, "ceiling_price", "ceilingPrice"), price_multiplier),
+        floor_price=_scaled(_first(source, "floor_price", "floorPrice"), price_multiplier),
+        volume=_scaled(_first(source, "volume", "nmVolume"), Decimal("1")),
+        trading_value=_scaled(_first(source, "trading_value", "nmValue"), Decimal("1")),
+        foreign_buy_volume=_scaled(_first(source, "foreign_buy_volume", "foreignBuyVolume"), Decimal("1")),
+        foreign_sell_volume=_scaled(_first(source, "foreign_sell_volume", "foreignSellVolume"), Decimal("1")),
+        put_through_volume=_scaled(_first(source, "put_through_volume", "ptVolume"), Decimal("1")),
+        put_through_value=_scaled(_first(source, "put_through_value", "ptValue"), Decimal("1")),
+        observed_at=observed_at,
+        source=source,
+    )
+
+
 def _canonical_record(
     *,
     provider: str,
@@ -155,6 +196,24 @@ def _canonical_record(
     observed_at: str | None,
     source: Mapping[str, Any],
 ) -> dict[str, Any]:
+    for name, value in (
+        ("open_price", open_price),
+        ("high_price", high_price),
+        ("low_price", low_price),
+        ("close_price", close_price),
+        ("volume", volume),
+        ("trading_value", trading_value),
+    ):
+        if value is not None and value < 0:
+            raise ValueError(f"{provider} {symbol} {trading_date}: negative {name}")
+    if (high_price is not None and low_price is not None and high_price < low_price
+            or high_price is not None and open_price is not None and open_price > high_price
+            or high_price is not None and close_price is not None and close_price > high_price
+            or low_price is not None and open_price is not None and open_price < low_price
+            or low_price is not None and close_price is not None and close_price < low_price):
+        raise ValueError(
+            f"{provider} {symbol} {trading_date}: upstream OHLC is inconsistent"
+        )
     warnings: list[str] = []
     if trading_date is None:
         warnings.append("missing_trading_date")
