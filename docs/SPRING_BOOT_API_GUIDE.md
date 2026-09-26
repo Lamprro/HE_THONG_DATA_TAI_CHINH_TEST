@@ -2,7 +2,7 @@
 
 > Tài liệu dành cho Java Spring Boot gọi Financial Data Python/FastAPI service.
 >
-> Cập nhật theo source code FastAPI `v0.4.0` trên nhánh `main`.
+> Cập nhật theo source code FastAPI `v0.5.0`.
 
 ## 1. Base URL
 
@@ -56,12 +56,15 @@ Response mong đợi với source hiện tại:
 {
   "status": "ok",
   "service": "financial-data-api-playground",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "proxy_mode": "allowlisted-passthrough"
 }
 ```
 
-Nếu production chưa trả `version = 0.4.0`, có nghĩa deployment Vercel đang chạy code cũ hơn source GitHub hiện tại. Khi đó một số endpoint mới, đặc biệt `/api/v1/proxy/...`, có thể trả `404`.
+Không suy ra contract giá chỉ từ `version`: kiểm tra `schema_version` trong chính
+response QUOTE/OHLCV. Nếu thiếu `market_price.v1`, đó là payload legacy từ bản
+deploy cũ; Spring Boot phải dùng parser legacy hoặc dừng nạp dữ liệu, không được
+coi đơn vị giá đã chuẩn hóa.
 
 ### 2.2 Danh sách provider nghiệp vụ
 
@@ -109,6 +112,33 @@ Response thường có dạng:
 ```
 
 Đây là nhóm nên dùng khi Spring Boot muốn một API nghiệp vụ ổn định, dễ map DTO.
+
+### 3.1.1 Contract `market_price.v1`
+
+Sáu endpoint `quote` và `ohlcv` của VnStock, VNDirect và CafeF trả cùng field và cùng đơn vị:
+
+Quy ước này chỉ có hiệu lực sau khi phiên bản chứa thay đổi chuẩn hóa được
+triển khai. Bản API đang chạy có thể vẫn trả payload VNDirect gốc; xác nhận bằng
+`schema_version` của từng response trước khi map vào DTO chung.
+
+| Field | Quy ước |
+|---|---|
+| `schema_version` | `market_price.v1` |
+| `trading_date` | Ngày giao dịch `YYYY-MM-DD` |
+| `record_type` | `DAILY_CANDLE` hoặc `QUOTE_SNAPSHOT` |
+| `price_timestamp` | OHLCV: đầu ngày giao dịch; QUOTE: thời điểm lấy snapshot |
+| `interval_code` | OHLCV dùng `1d`; QUOTE dùng `snapshot` |
+| Các field giá | VND, không phải nghìn đồng |
+| `trading_value` | VND, không phải tỷ đồng |
+| `volume` | Số cổ phiếu khớp lệnh |
+| `source_record` | Record gốc để audit và xử lý field riêng của provider |
+
+QUOTE và OHLCV có chính xác cùng tập field để Java dùng chung DTO. Khác biệt nằm ở
+`record_type`, `interval_code` và ý nghĩa `price_timestamp`.
+
+Spring Boot nên reject/quarantine record có `normalization_warnings` khác rỗng,
+đặc biệt `missing_trading_date` hoặc `missing_close_price`. Không dùng
+`retrieved_at` thay cho `price_timestamp`: `retrieved_at` chỉ là lúc Python gọi nguồn.
 
 ## 3.2 Raw passthrough proxy
 
@@ -1075,4 +1105,4 @@ Nếu tài liệu này và Swagger khác nhau, kiểm tra theo thứ tự:
 2. `app/api/v1/*.py` để biết path/query params thực tế.
 3. `/openapi.json` hoặc `/docs` của deployment đang chạy để biết deployment production hiện tại đã nhận version code nào.
 
-Tài liệu này mô tả source FastAPI `v0.4.0` hiện tại trong repository.
+Tài liệu này mô tả source FastAPI `v0.5.0` hiện tại trong repository.
