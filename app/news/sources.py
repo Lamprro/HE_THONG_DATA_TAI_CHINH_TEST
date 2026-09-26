@@ -5,6 +5,7 @@ import re
 from abc import ABC, abstractmethod
 from datetime import datetime
 from urllib.parse import urlparse, urlunparse
+from zoneinfo import ZoneInfo
 
 import httpx
 from bs4 import BeautifulSoup
@@ -22,6 +23,9 @@ class NewsSource(ABC):
 
     @abstractmethod
     def fetch_article(self, url: str) -> NewsArticle: ...
+
+    @abstractmethod
+    def parse_article(self, url: str, html: str, http_status: int | None = None) -> NewsArticle: ...
 
 
 def canonicalize_url(url: str) -> str:
@@ -60,7 +64,11 @@ class CafeFNewsSource(NewsSource):
         canonical_url = canonicalize_url(url)
         response = self.client.get(canonical_url)
         response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
+        return self.parse_article(str(response.url), response.text, response.status_code)
+
+    def parse_article(self, url: str, html: str, http_status: int | None = None) -> NewsArticle:
+        canonical_url = canonicalize_url(url)
+        soup = BeautifulSoup(html, "html.parser")
 
         title = _text(soup.select_one("h1.title, h1.article-title, h1"))
         content = soup.select_one("div.detail-content, div#mainContent, div.article-body, article")
@@ -85,7 +93,7 @@ class CafeFNewsSource(NewsSource):
             language="vi",
             published_at=published_at,
             external_id=external_id,
-            metadata={"source": self.code, "http_status": response.status_code},
+            metadata={"source": self.code, **({"http_status": http_status} if http_status is not None else {})},
         )
 
     @staticmethod
@@ -95,19 +103,26 @@ class CafeFNewsSource(NewsSource):
 
     @staticmethod
     def _parse_published_at(soup: BeautifulSoup) -> datetime | None:
-        node = soup.select_one("[data-publish-date], time[datetime]")
-        raw = node.get("data-publish-date") or node.get("datetime") if node else None
+        node = soup.select_one(
+            "[itemprop='datePublished'][datetime], meta[property='article:published_time'], "
+            "[data-publish-date], time[datetime]"
+        )
+        raw = (node.get("datetime") or node.get("content") or node.get("data-publish-date")) if node else None
         if raw:
             try:
-                return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                value = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                return value.replace(tzinfo=ZoneInfo("Asia/Ho_Chi_Minh")) if value.tzinfo is None else value
             except ValueError:
                 pass
         node = soup.select_one(".pdate, .detail-time, .time")
         raw = _text(node)
         if raw:
-            match = re.search(r"(\d{1,2}/\d{1,2}/\d{4})\s*-?\s*(\d{1,2}:\d{2})", raw)
+            match = re.search(r"(\d{1,2}[-/]\d{1,2}[-/]\d{4})\s*-?\s*(\d{1,2}:\d{2})", raw)
             if match:
-                return datetime.strptime(" ".join(match.groups()), "%d/%m/%Y %H:%M")
+                date_text, time_text = match.groups()
+                return datetime.strptime(date_text.replace("-", "/") + " " + time_text, "%d/%m/%Y %H:%M").replace(
+                    tzinfo=ZoneInfo("Asia/Ho_Chi_Minh")
+                )
         return None
 
 
