@@ -147,7 +147,17 @@ class VnStockProvider:
         result = self.reference.index.members(index_code, source=source)
         if isinstance(result, pd.DataFrame):
             return result
-        return pd.DataFrame(result or [])
+        if isinstance(result, pd.Series):
+            if result.empty:
+                return pd.DataFrame()
+            if result.index.isin(("symbol", "ticker", "code", "stock_code", "stockCode")).any():
+                return result.to_frame().T.reset_index(drop=True)
+            if result.map(lambda value: isinstance(value, dict)).all():
+                return pd.DataFrame(result.tolist())
+            raise ValueError("Unsupported index member Series shape from VnStock")
+        if result is None:
+            return pd.DataFrame()
+        return pd.DataFrame(result)
 
     def company_info(self, symbol: str) -> pd.DataFrame:
         company = self.reference.company(symbol)
