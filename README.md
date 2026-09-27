@@ -152,6 +152,10 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+VnStock-based market and company endpoints are optional. Install
+`requirements-vnstock.txt` in environments where the package is available;
+CafeF, VNDirect, and the stateless NEWS URL fetch API do not require it.
+
 Swagger backend: `http://127.0.0.1:8000/docs`
 
 Danh sách proxy providers: `http://127.0.0.1:8000/api/v1/proxy/providers`

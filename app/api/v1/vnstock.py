@@ -7,7 +7,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Path, Query
 
 from app.core.serialization import dataframe_to_records, utc_now_iso
-from app.providers.vnstock_provider import vnstock_provider
+from app.providers.vnstock_provider import VnStockUnavailableError, vnstock_provider
 
 router = APIRouter()
 
@@ -39,9 +39,11 @@ def normalize_index_code(index_code: str) -> str:
 
 def provider_error(exc: Exception) -> HTTPException:
     return HTTPException(
-        status_code=502,
+        status_code=503 if isinstance(exc, VnStockUnavailableError) else 502,
         detail={
-            "message": "VnStock/upstream provider could not return data",
+            "message": "VnStock package is unavailable in this runtime"
+            if isinstance(exc, VnStockUnavailableError)
+            else "VnStock/upstream provider could not return data",
             "provider": "vnstock",
             "provider_error": str(exc),
         },

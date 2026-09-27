@@ -26,9 +26,19 @@ if os.getenv("VERCEL"):
     os.environ["TMPDIR"] = "/tmp"
 
 import pandas as pd
-from vnstock import Fundamental, Market, Reference
 
+try:
+    from vnstock import Fundamental, Market, Reference
+except ImportError as exc:
+    Fundamental = Market = Reference = None
+    _VNSTOCK_IMPORT_ERROR = exc
+else:
+    _VNSTOCK_IMPORT_ERROR = None
 from app.providers.base import ProviderInfo
+
+
+class VnStockUnavailableError(RuntimeError):
+    """Raised when the optional VnStock package is absent from this runtime."""
 
 
 class VnStockProvider:
@@ -36,7 +46,7 @@ class VnStockProvider:
         code="vnstock",
         name="VnStock Unified UI v4",
         adapter="python-library",
-        status="active",
+        status="active" if _VNSTOCK_IMPORT_ERROR is None else "unavailable",
         auth_required=False,
         capabilities=(
             "ohlcv",
@@ -51,16 +61,26 @@ class VnStockProvider:
         ),
     )
 
+    @staticmethod
+    def _require_package() -> None:
+        if _VNSTOCK_IMPORT_ERROR is not None:
+            raise VnStockUnavailableError(
+                "The optional vnstock package is not installed in this runtime."
+            ) from _VNSTOCK_IMPORT_ERROR
+
     @cached_property
     def market(self) -> Market:
+        self._require_package()
         return Market()
 
     @cached_property
     def reference(self) -> Reference:
+        self._require_package()
         return Reference()
 
     @cached_property
     def fundamental(self) -> Fundamental:
+        self._require_package()
         return Fundamental()
 
     def equity_ohlcv(self, symbol: str, start: str, end: str) -> pd.DataFrame:

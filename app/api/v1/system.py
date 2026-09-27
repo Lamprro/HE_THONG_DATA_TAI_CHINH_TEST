@@ -24,6 +24,11 @@ def health() -> dict:
 @router.get("/providers", summary="List registered data providers")
 def providers() -> dict:
     vnstock = asdict(vnstock_provider.info)
+    if vnstock_provider.info.status == "unavailable":
+        vnstock["message"] = (
+            "VnStock endpoints are registered but unavailable because the optional "
+            "vnstock package is not installed in this runtime."
+        )
 
     news = asdict(vnstock_news_provider.info)
     news["runtime"] = vnstock_news_provider.status()
