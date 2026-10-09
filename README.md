@@ -1,5 +1,39 @@
 # HE_THONG_DATA_TAI_CHINH_TEST
 
+## Vietnam macro API (v0.6.0)
+
+- `GET /api/v1/macro/worldbank/series?country=VNM`
+- `GET /api/v1/macro/worldbank/observations?country=VNM&start=2016-01-01&end=2026-10-09`
+- `GET /api/v1/macro/bis/series?country=VNM`
+- `GET /api/v1/macro/bis/observations?country=VNM&start=2016-01-01&end=2026-10-09`
+
+Only Vietnam is accepted. World Bank WDI supplies ten native annual series:
+GDP current USD, real GDP growth, CPI index/inflation, annual official USD/VND,
+lending/deposit rates, modeled ILO unemployment, and exports/imports of goods
+and services. BIS supplies its native quarterly average VND per USD series.
+Annual values are never divided, repeated or interpolated into quarterly values.
+Refresh scheduling and durable storage belong to Java; Python is stateless and
+makes a bounded official-source request per call, suitable for the existing
+60-second Vercel function.
+
+Contract `macro_observations.v1`: `count` counts series, `observation_count`
+counts numeric observations. Each series contains its source indicator,
+country, frequency, unit, observations and source records. Null upstream values
+are recorded as missing periods and never filled. `observation_date` is the
+period end; `retrieved_at` is collection time, not the historical publication date.
+World Bank/BIS revision vintages and point-in-time backtest availability are not verified.
+
+Checked 09/10/2026 through the actual FastAPI app: World Bank returned 95
+observations from 2016 onward, BIS returned 42 quarters through 2026-Q2.
+World Bank rates currently end in 2023; annual FX ends in 2024; most other series
+end in 2025. These are dated coverage observations, not promises of future availability.
+Ten unittest cases passed (six new macro cases and four NEWS regressions;
+provider transport in unit tests is mocked). Run `python -m unittest discover -s tests -v`.
+Production acceptance must also check the deployed API and the Java ingestion flow.
+
+Official contracts: [World Bank Indicators API](https://datahelpdesk.worldbank.org/knowledgebase/articles/898581-api-basic-call-structures)
+and [BIS exchange-rate series](https://data.bis.org/topics/XRU/BIS,WS_XRU,1.0/Q.VN.VND.A).
+
 Financial Data API Playground cho dự án phân tích dữ liệu tài chính AI.
 
 ## Mục tiêu kiến trúc

@@ -16,8 +16,10 @@ def health() -> dict:
     return {
         "status": "ok",
         "service": "financial-data-api-playground",
-        "version": "0.4.0",
+        "version": "0.6.0",
         "proxy_mode": "allowlisted-passthrough",
+        "macro_schema": "macro_observations.v1",
+        "macro_country": "VNM",
     }
 
 
