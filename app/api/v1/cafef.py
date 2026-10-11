@@ -6,6 +6,7 @@ from time import perf_counter
 from fastapi import APIRouter, HTTPException, Path, Query
 
 from app.core.serialization import dataframe_to_records, utc_now_iso
+from app.core.financial_metadata import financial_metadata
 from app.providers.cafef_provider import cafef_provider
 
 
@@ -51,6 +52,8 @@ def response(
     **meta,
 ) -> dict:
     rows = dataframe_to_records(data)
+    if dataset in {"balance_sheet", "income_statement", "cash_flow"}:
+        meta["financial_metadata"] = financial_metadata(data, dataset, "cafef")
 
     return {
         "provider": "cafef",

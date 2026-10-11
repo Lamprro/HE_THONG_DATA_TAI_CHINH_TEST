@@ -6,6 +6,7 @@ from time import perf_counter
 from fastapi import APIRouter, HTTPException, Path, Query
 
 from app.core.serialization import dataframe_to_records, utc_now_iso
+from app.core.financial_metadata import financial_metadata
 from app.providers.vndirect_provider import vndirect_provider
 
 
@@ -51,6 +52,8 @@ def response(
     **meta,
 ) -> dict:
     rows = dataframe_to_records(data)
+    if dataset in {"balance_sheet", "income_statement", "cash_flow"}:
+        meta["financial_metadata"] = financial_metadata(data, dataset, "vndirect")
 
     return {
         "provider": "vndirect",

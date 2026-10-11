@@ -10,6 +10,7 @@ import httpx
 import pandas as pd
 
 from app.providers.base import ProviderInfo
+from app.core.financial_metadata import cafef_metadata
 
 
 class CafeFProvider:
@@ -335,7 +336,9 @@ class CafeFProvider:
                 for column in df.columns
             ]
 
-        return df.reset_index(drop=True)
+        result = df.reset_index(drop=True)
+        result.attrs["financial_metadata"] = cafef_metadata(response.text, str(response.url), statement_name)
+        return result
 
     def balance_sheet(
         self,

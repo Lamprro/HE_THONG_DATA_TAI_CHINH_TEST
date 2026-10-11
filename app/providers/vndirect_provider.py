@@ -373,7 +373,9 @@ class VnDirectProvider:
         )
 
         if not model_rows:
-            return pd.DataFrame(statement_rows)
+            result = pd.DataFrame(statement_rows)
+            result.attrs["financial_metadata"] = {"source_url": str(statement_response.url)}
+            return result
 
         # -----------------------------------------------------
         # 3. Merge numericValue với tên item
@@ -422,7 +424,9 @@ class VnDirectProvider:
                 na_position="last",
             )
 
-        return result.reset_index(drop=True)
+        result = result.reset_index(drop=True)
+        result.attrs["financial_metadata"] = {"source_url": str(statement_response.url)}
+        return result
 
     # =========================================================
     # FINANCIAL STATEMENT WRAPPERS

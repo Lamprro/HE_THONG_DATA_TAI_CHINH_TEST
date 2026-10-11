@@ -7,6 +7,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Path, Query
 
 from app.core.serialization import dataframe_to_records, utc_now_iso
+from app.core.financial_metadata import financial_metadata
 from app.providers.vnstock_provider import VnStockUnavailableError, vnstock_provider
 
 router = APIRouter()
@@ -269,7 +270,8 @@ def financial_statement(
     started = perf_counter()
     try:
         df = vnstock_provider.financial_statement(ticker, statement, period)
-        return response(statement, ticker, df, started, period=period)
+        return response(statement, ticker, df, started, period=period,
+                        financial_metadata=financial_metadata(df, statement, "vnstock"))
     except Exception as exc:
         raise provider_error(exc) from exc
 
