@@ -43,7 +43,7 @@ class TrainingDataQualityTests(unittest.TestCase):
             with self.assertRaises(ValueError):fetch_foreign('FPT',date(2020,1,1),date(2020,1,31),client)
 
     def test_native_index_is_points_and_keeps_source_record(self):
-        payload={'symbol':'VNINDEX','data_day':[{'t':'2016-01-04 07:00','o':580,'h':585,'l':575,'c':580,'v':123}]}
+        payload={'symbol':'VNINDEX','data_day':[{'t':'2016-01-04 07:00','o':'580','h':585,'l':575,'c':'580','v':'123.0'}]}
         with httpx.Client(transport=httpx.MockTransport(lambda r:httpx.Response(200,json=payload))) as client:
             result=index_history('VNINDEX',date(2016,1,1),date(2016,1,31),client)
         self.assertEqual(result['data'][0]['close'],580);self.assertEqual(result['unit'],'INDEX_POINTS')

@@ -29,8 +29,11 @@ def index_history(symbol: str, start: date, end: date, client=None):
             if not start <= day <= end or day in seen:
                 raise ValueError("Duplicate or out-of-window source index bar")
             seen.add(day)
-            values = [source[k] for k in ("o","h","l","c","v")]
-            if any(isinstance(v,bool) or not isinstance(v,(int,float)) or not math.isfinite(v) or v<0 for v in values):
+            raw_values = [source[k] for k in ("o","h","l","c","v")]
+            if any(isinstance(v,bool) or not isinstance(v,(int,float,str)) for v in raw_values):
+                raise ValueError("Invalid index numeric value")
+            values = [float(v) for v in raw_values]
+            if any(not math.isfinite(v) or v<0 for v in values):
                 raise ValueError("Invalid index numeric value")
             opening,high,low,closing,volume=values
             if high<max(opening,closing,low) or low>min(opening,closing,high):
