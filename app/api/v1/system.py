@@ -1,4 +1,5 @@
 from dataclasses import asdict
+import os
 
 from fastapi import APIRouter
 
@@ -16,7 +17,9 @@ def health() -> dict:
     return {
         "status": "ok",
         "service": "financial-data-api-playground",
-        "version": "0.6.0",
+        "version": "0.7.0",
+        "build_commit": os.getenv("VERCEL_GIT_COMMIT_SHA", os.getenv("APP_BUILD_COMMIT", "unknown")),
+        "data_contracts": ["financial.metadata.v1", "vndirect.ratios.history.v1", "foreign_trades.v1", "native-kbs-index", "native-bis-monthly"],
         "proxy_mode": "allowlisted-passthrough",
         "macro_schema": "macro_observations.v1",
         "macro_country": "VNM",

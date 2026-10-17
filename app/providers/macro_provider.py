@@ -23,6 +23,7 @@ WORLD_BANK = {
     "NE.IMP.GNFS.CD": ("VN_IMPORTS_GOODS_SERVICES_USD", "Imports of goods and services (current US$)", "USD"),
 }
 BIS_CODE = "VN_USD_VND_QUARTER_AVG"
+BIS_MONTH_CODE = "VN_USD_VND_MONTH_AVG"
 SCHEMA = "macro_observations.v1"
 
 
@@ -49,7 +50,10 @@ def catalog(provider: str) -> list[dict]:
         return [dict(code=BIS_CODE, name="VND per USD, quarterly average", unit="VND_PER_USD",
                      country_code="VNM", frequency="QUARTERLY", provider=provider,
                      source_indicator="BIS:WS_XRU(1.0)/Q.VN.VND.A",
-                     description="BIS native quarterly period-average exchange rate; not a quarter-end spot quote. Publication/vintage date is not verified.")]
+                     description="BIS native quarterly period-average exchange rate; not a quarter-end spot quote. Publication/vintage date is not verified."),
+                dict(code=BIS_MONTH_CODE,name="VND per USD, monthly average",unit="VND_PER_USD",
+                     country_code="VNM",frequency="MONTHLY",provider=provider,source_indicator="BIS:WS_XRU(1.0)/M.VN.VND.A",
+                     description="BIS native monthly period average. Historical publication/vintage date remains unverified.")]
     raise ValueError("Supported macro providers: worldbank, bis")
 
 
@@ -97,22 +101,26 @@ def normalize_worldbank(payload, start: date, end: date) -> list[dict]:
     return list(series.values())
 
 
-def normalize_bis(body: str, start: date, end: date) -> list[dict]:
+def normalize_bis(body: str, start: date, end: date, frequency: str = "Q") -> list[dict]:
     reader = csv.DictReader(io.StringIO(body.lstrip('\ufeff')))
     required = {"FREQ", "REF_AREA", "CURRENCY", "COLLECTION", "TIME_PERIOD", "OBS_VALUE", "UNIT_MULT"}
     if not required.issubset(reader.fieldnames or []):
         raise MacroUpstreamError("Unexpected BIS CSV columns")
-    result = dict(catalog("bis")[0], observations=[], missing_periods=[])
+    if frequency not in {"Q","M"}:raise MacroUpstreamError("Unsupported native BIS frequency")
+    result = dict(catalog("bis")[0 if frequency=="Q" else 1], observations=[], missing_periods=[])
     seen = set()
     for row in reader:
-        if (row["FREQ"], row["REF_AREA"], row["CURRENCY"], row["COLLECTION"]) != ("Q", "VN", "VND", "A") or row["UNIT_MULT"] != "0":
+        if (row["FREQ"], row["REF_AREA"], row["CURRENCY"], row["COLLECTION"]) != (frequency, "VN", "VND", "A") or row["UNIT_MULT"] != "0":
             raise MacroUpstreamError("Unexpected BIS series or unit multiplier")
         try:
-            year, quarter = row["TIME_PERIOD"].split("-Q")
-            year, quarter = int(year), int(quarter)
-            if quarter not in (1, 2, 3, 4):
-                raise ValueError()
-            month = quarter * 3
+            if frequency=="Q":
+                year, quarter = row["TIME_PERIOD"].split("-Q")
+                year, quarter = int(year), int(quarter)
+                if quarter not in (1, 2, 3, 4):raise ValueError()
+                month = quarter * 3
+            else:
+                year,month=map(int,row["TIME_PERIOD"].split("-"))
+                if month not in range(1,13):raise ValueError()
             period_end = date(year, month, calendar.monthrange(year, month)[1])
         except (ValueError, KeyError):
             raise MacroUpstreamError("Invalid BIS quarter") from None
@@ -133,7 +141,7 @@ def normalize_bis(body: str, start: date, end: date) -> list[dict]:
     return [result]
 
 
-def observations(provider: str, country: str, start: date, end: date, client: httpx.Client | None = None) -> dict:
+def observations(provider: str, country: str, start: date, end: date, client: httpx.Client | None = None, include_monthly: bool = False) -> dict:
     validate_window(country, start, end)
     catalog(provider)
     own_client = client is None
@@ -150,6 +158,14 @@ def observations(provider: str, country: str, start: date, end: date, client: ht
                 headers={"Accept": "application/vnd.sdmx.data+csv;version=1.0.0"})
             response.raise_for_status()
             data = normalize_bis(response.text, start, end)
+            if include_monthly:
+                monthly = client.get("https://stats.bis.org/api/v1/data/WS_XRU/M.VN.VND.A",
+                    params=dict(startPeriod=f"{start.year}-01",endPeriod=f"{end.year}-12"),
+                    headers={"Accept":"application/vnd.sdmx.data+csv;version=1.0.0"})
+                monthly.raise_for_status()
+                data += normalize_bis(monthly.text,start,end,"M")
+                data[0]["source_url"]=str(response.url)
+                data[1]["source_url"]=str(monthly.url)
         count = sum(len(s["observations"]) for s in data)
         if count == 0:
             raise MacroUpstreamError("No published Vietnam observations in the requested window")

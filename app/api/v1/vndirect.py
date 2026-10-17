@@ -54,6 +54,8 @@ def response(
     rows = dataframe_to_records(data)
     if dataset in {"balance_sheet", "income_statement", "cash_flow"}:
         meta["financial_metadata"] = financial_metadata(data, dataset, "vndirect")
+    if dataset == "ratios":
+        meta["ratio_metadata"] = getattr(data, "attrs", {}).get("ratio_metadata", {})
 
     return {
         "provider": "vndirect",
@@ -396,7 +398,7 @@ def cash_flow(
 @router.get(
     "/equities/{symbol}/ratios",
     tags=["vndirect-financials"],
-    summary="Get latest VNDirect financial ratios",
+    summary="Get latest or historical VNDirect financial ratios",
     description=(
         "Latest available fundamental and valuation ratios "
         "from VNDirect."
@@ -407,13 +409,20 @@ def ratios(
         ...,
         examples=["FPT"],
     ),
+    start: date | None = Query(None),
+    end: date | None = Query(None),
 ) -> dict:
     ticker = normalize_symbol(symbol)
+    if (start is None) != (end is None) or (start and (start > end or end.year-start.year > 15)):
+        raise HTTPException(status_code=400, detail="Provide both start/end, up to 15 calendar years")
+    if end and end > date.today():
+        raise HTTPException(status_code=400, detail="Ratio end date must not be in the future")
 
     started = perf_counter()
 
     try:
-        df = vndirect_provider.ratios(ticker)
+        df = (vndirect_provider.ratios(ticker, start.isoformat(), end.isoformat())
+              if start else vndirect_provider.ratios(ticker))
 
         return response(
             "ratios",

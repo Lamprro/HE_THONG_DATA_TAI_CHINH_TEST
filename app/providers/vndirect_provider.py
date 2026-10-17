@@ -474,6 +474,8 @@ class VnDirectProvider:
     def ratios(
         self,
         symbol: str,
+        start: str | None = None,
+        end: str | None = None,
     ) -> pd.DataFrame:
         ratio_codes = (
             "PRICE_TO_EARNINGS",
@@ -486,29 +488,43 @@ class VnDirectProvider:
 
         rows: list[dict] = []
 
+        if (start is None) != (end is None):
+            raise ValueError("Both start and end are required for ratio history")
+        if start is not None and (date.fromisoformat(start) > date.fromisoformat(end)
+                or date.fromisoformat(end).year - date.fromisoformat(start).year > 15):
+            raise ValueError("Invalid ratio history window; maximum 15 calendar years")
+        seen = set()
         for ratio_code in ratio_codes:
-            response = self.client.get(
-                f"{self.BASE_URL}/ratios",
-                params={
-                    "q": (
-                        f"code:{symbol}"
-                        f"~ratioCode:{ratio_code}"
-                    ),
-                    "sort": "reportDate:desc",
-                    "size": 1,
-                    "page": 1,
-                },
-            )
-
-            response.raise_for_status()
-
-            payload = response.json()
-
-            data = payload.get("data") or []
-
-            if data:
-                rows.append(data[0])
-
-        return pd.DataFrame(rows)
+            query = f"code:{symbol}~ratioCode:{ratio_code}"
+            if start is not None:
+                query += f"~reportDate:gte:{start}~reportDate:lte:{end}"
+            page, total_pages = 1, 1
+            while page <= total_pages:
+                response = self.client.get(f"{self.BASE_URL}/ratios", params={
+                    "q": query, "sort": "reportDate:desc", "size": 1000 if start else 1, "page": page})
+                response.raise_for_status()
+                payload = response.json()
+                data = payload.get("data")
+                if not isinstance(data, list):
+                    raise ValueError("Invalid ratio source response")
+                total_pages = int(payload.get("totalPages", 1)) if start else 1
+                if total_pages > 50 or (page < total_pages and not data):
+                    raise ValueError("Incomplete or oversized ratio pagination")
+                for row in data:
+                    report_date = date.fromisoformat(row["reportDate"]).isoformat()
+                    identity = ratio_code, report_date
+                    if (row.get("code") != symbol or row.get("ratioCode") != ratio_code
+                            or (start and not start <= report_date <= end) or identity in seen):
+                        raise ValueError("Mismatched or duplicate ratio source row")
+                    seen.add(identity)
+                    rows.append(row)
+                page += 1
+        result = pd.DataFrame(rows)
+        result.attrs["ratio_metadata"] = {
+            "contract": "vndirect.ratios.history.v1", "source_url": self.BASE_URL + "/ratios",
+            "mode": "HISTORICAL" if start else "LATEST", "start": start, "end": end,
+            "availability": "REPORT_DATE_IS_NOT_VERIFIED_PUBLICATION_DATE",
+            "vintage": "CURRENT_SOURCE_VINTAGE", "missing_values": "PRESERVED_AS_NULL"}
+        return result
     
 vndirect_provider = VnDirectProvider()

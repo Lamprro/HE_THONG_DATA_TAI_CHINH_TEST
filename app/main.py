@@ -10,6 +10,8 @@ from app.api.v1.vndirect import router as vndirect_router
 from app.api.v1.vnstock import router as vnstock_router
 from app.api.v1.url_fetch import router as url_fetch_router
 from app.api.v1.macro import router as macro_router
+from app.api.v1.kbs import router as kbs_router
+from app.api.v1.foreign import router as foreign_router
 
 TAGS = [
     {
@@ -56,7 +58,7 @@ TAGS = [
 
 app = FastAPI(
     title="Financial Data & News API Playground",
-    version="0.6.0",
+    version="0.7.0",
     summary="Financial-data adapters plus transparent third-party API passthrough",
     description=(
         "Provider-oriented API playground for the AI Financial Data Analysis project. "
@@ -88,6 +90,8 @@ app.include_router(vndirect_router, prefix="/api/v1/vndirect")
 app.include_router(cafef_router, prefix="/api/v1/cafef")
 app.include_router(url_fetch_router, prefix="/api/v1")
 app.include_router(macro_router, prefix="/api/v1/macro")
+app.include_router(kbs_router, prefix="/api/v1/kbs")
+app.include_router(foreign_router, prefix="/api/v1/cafef")
 
 
 @app.get("/", include_in_schema=False)

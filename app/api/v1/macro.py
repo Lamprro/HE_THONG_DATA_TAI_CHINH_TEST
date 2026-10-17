@@ -21,14 +21,15 @@ def series(provider: str, country: str = Query("VNM")):
 
 
 @router.get("/{provider}/observations")
-def fetch_observations(provider: str, start: date, end: date, country: str = Query("VNM")):
+def fetch_observations(provider: str, start: date, end: date, country: str = Query("VNM"), include_monthly: bool = Query(False)):
     try:
         validate_window(country, start, end)
         catalog(provider)
     except ValueError as exc:
         raise HTTPException(422, detail=str(exc)) from None
     try:
-        result = observations(provider, country, start, end)
+        result = (observations(provider, country, start, end, include_monthly=True)
+                  if include_monthly else observations(provider, country, start, end))
         logger.info("Vietnam macro fetched provider=%s count=%s start=%s end=%s", provider, result["count"], start, end)
         return result
     except MacroUpstreamError:

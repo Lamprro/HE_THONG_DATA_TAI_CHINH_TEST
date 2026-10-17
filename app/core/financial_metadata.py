@@ -61,10 +61,14 @@ def financial_metadata(df, dataset: str, provider: str, *, _per_period=True) -> 
         "published_at": (("published_at", "publishedAt", "announcementDate", "publicationDate"), _published),
         "period_basis": (("period_basis", "periodBasis"), lambda v: str(v) if str(v) in
                          {"POINT_IN_TIME", "STANDALONE_QUARTER", "YTD", "ANNUAL"} else None),
+        "revision_status": (("isRestated", "is_restated"), lambda v:
+                            "RESTATED" if v is True else "ORIGINAL" if v is False else None),
+        "revision_published_at": (("revisionPublishedAt", "restatementPublishedAt"), _published),
     }
     result = {"schema_version": "financial.metadata.v1", "provider": provider,
               "report_scope": "UNKNOWN", "currency": None, "unit_scale": None,
               "published_at": None, "period_basis": "UNKNOWN", "evidence": {}, "limitations": []}
+    result.update(revision_status="UNKNOWN",revision_published_at=None,publication_precision="UNKNOWN")
     if supplied.get("source_url"):
         result["source_url"] = supplied["source_url"]
     for field, (aliases, normalize) in fields.items():
@@ -91,6 +95,9 @@ def financial_metadata(df, dataset: str, provider: str, *, _per_period=True) -> 
     elif rows and all(row.get("reportType") in {"YEAR", "ANNUAL", "YEARLY"} for row in rows):
         result["period_basis"] = "ANNUAL"
         result["evidence"]["period_basis"] = [{"field": "reportType", "value": rows[0]["reportType"], "normalized": "ANNUAL"}]
+    if result["published_at"] is not None:
+        source_dates=result["evidence"]["published_at"]
+        result["publication_precision"] = ("DAY" if any(re.fullmatch(r"\d{4}-\d{2}-\d{2}",str(e["value"])) for e in source_dates) else "DATETIME")
     for field in fields:
         if result[field] in (None, "UNKNOWN"):
             result["limitations"].append(f"UNVERIFIED_{field.upper()}")
