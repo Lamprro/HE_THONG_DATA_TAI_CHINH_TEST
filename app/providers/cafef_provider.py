@@ -241,8 +241,7 @@ class CafeFProvider:
 
         period:
             0 = yearly
-            1 = quarterly
-            2 = cumulative 6 months
+            1..4 = final calendar quarter of the four-column report window
         """
 
         report_types = {
@@ -272,9 +271,9 @@ class CafeFProvider:
                 "BALANCESHEET, INCOME or CASHFLOW"
             )
 
-        if period not in (0, 1, 2):
+        if period not in (0, 1, 2, 3, 4):
             raise ValueError(
-                "period must be 0, 1 or 2"
+                "period must be 0 (annual) or 1..4 (ending quarter)"
             )
 
         resolved_year = (
@@ -300,7 +299,7 @@ class CafeFProvider:
         response.raise_for_status()
 
         from app.core.cafef_statements import parse_cafef_statement
-        return parse_cafef_statement(response.text, str(response.url), statement_name)
+        return parse_cafef_statement(response.text, str(response.url), statement_name, symbol)
 
     def balance_sheet(
         self,

@@ -202,10 +202,10 @@ def balance_sheet(
     period: int = Query(
         1,
         ge=0,
-        le=2,
+        le=4,
         description=(
             "CafeF report period. "
-            "0 = yearly, 1 = quarterly, 2 = cumulative 6 months."
+            "0 = annual; 1..4 = ending calendar quarter of the four-column window."
         ),
     ),
 ) -> dict:
@@ -257,10 +257,10 @@ def income_statement(
     period: int = Query(
         1,
         ge=0,
-        le=2,
+        le=4,
         description=(
             "CafeF report period. "
-            "0 = yearly, 1 = quarterly, 2 = cumulative 6 months."
+            "0 = annual; 1..4 = ending calendar quarter of the four-column window."
         ),
     ),
 ) -> dict:
@@ -312,10 +312,10 @@ def cash_flow(
     period: int = Query(
         1,
         ge=0,
-        le=2,
+        le=4,
         description=(
             "CafeF report period. "
-            "0 = yearly, 1 = quarterly, 2 = cumulative 6 months."
+            "0 = annual; 1..4 = ending calendar quarter of the four-column window."
         ),
     ),
 ) -> dict:

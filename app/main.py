@@ -60,7 +60,7 @@ TAGS = [
 
 app = FastAPI(
     title="Financial Data & News API Playground",
-    version="0.7.2",
+    version="0.7.3",
     summary="Financial-data adapters plus transparent third-party API passthrough",
     description=(
         "Provider-oriented API playground for the AI Financial Data Analysis project. "

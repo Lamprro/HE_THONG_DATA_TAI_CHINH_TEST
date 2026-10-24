@@ -35,11 +35,25 @@ def number(text):
     return str(-parsed if negative else parsed)
 
 
-def parse_cafef_statement(html, source_url, statement):
+def parse_cafef_statement(html, source_url, statement, symbol=None):
     soup=BeautifulSoup(html,'html.parser')
+    company=soup.select_one('#div_cf_BoxContent a[href]')
+    if symbol is not None:
+        if company is None or not re.search(r'/'+re.escape(symbol)+r'-',company.get('href',''),re.I):
+            raise ValueError('CAFEF_COMPANY_IDENTITY_MISMATCH')
     header=soup.select_one('#tblGridData')
     body=soup.select_one('#tableContent')
     if header is None or body is None:raise ValueError('CafeF report header/body missing')
+    # CafeF can render bank values under the non-bank template. Those numbers
+    # must not be relabelled as sales, inventory or working capital.
+    bank=company is not None and 'ngan hang' in _plain(company.get_text(' ',strip=True))
+    labels=_plain(' '.join(row.find(['td','th']).get_text(' ',strip=True)
+                          for row in body.find_all('tr',recursive=False) if row.find(['td','th'])))
+    if not labels:
+        labels=_plain(body.get_text(' ',strip=True))
+    if bank and ((statement=='INCOME' and 'doanh thu ban hang' in labels)
+                 or (statement=='BALANCESHEET' and 'tai san ngan han' in labels)):
+        raise ValueError('CAFEF_BANK_TEMPLATE_MISMATCH: bank values have non-bank item labels')
     headings=header.select('td.h_t, th.h_t')
     if not headings:raise ValueError('CafeF report period headers missing')
     periods=[period_from_header(x.get_text(' ',strip=True)) for x in headings]

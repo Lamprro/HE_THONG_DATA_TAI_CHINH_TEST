@@ -8,6 +8,17 @@ HTML='''<table id="tblGridData"><tr><td>Trước</td><td class="h_t">Quý 2- 202
 <tr id="ContentPlaceHolder1_trDonVi"><td>Đơn vị: tỷ đồng</td></tr>'''
 
 class CafeFStatementsTests(unittest.TestCase):
+ def test_bank_values_under_non_bank_labels_are_rejected(self):
+  identity='<div id="div_cf_BoxContent"><a href="/du-lieu/hose/EIB-bank.chn">Ngan hang EIB</a></div>'
+  for statement,label in [('INCOME','Doanh thu ban hang'),('BALANCESHEET','Tai san ngan han')]:
+   html=identity+HTML.replace('Lợi nhuận sau thuế',label)
+   with self.assertRaisesRegex(ValueError,'CAFEF_BANK_TEMPLATE_MISMATCH'):
+    parse_cafef_statement(html,'url',statement,'EIB')
+ def test_requested_company_must_match_report(self):
+  html='<div id="div_cf_BoxContent"><a href="/du-lieu/hose/FPT-company.chn">FPT</a></div>'+HTML
+  with self.assertRaisesRegex(ValueError,'CAFEF_COMPANY_IDENTITY_MISMATCH'):
+   parse_cafef_statement(html,'url','INCOME','EIB')
+  self.assertEqual(len(parse_cafef_statement(html,'url','INCOME','FPT')),2)
  def test_separate_header_nested_chart_and_exact_amount(self):
   d=parse_cafef_statement(HTML,'https://cafef.vn/report','INCOME')
   self.assertEqual(len(d),2)
