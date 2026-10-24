@@ -1,3 +1,4 @@
 # Optional provider package. Installing this file enables the /api/v1/vnstock
 # and /api/v1/vnstock-news/company endpoints when the package is available.
-vnstock==4.0.7
+--extra-index-url https://vnstocks.com/api/simple
+vnstock==4.0.9
