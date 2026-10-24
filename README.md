@@ -186,9 +186,38 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-VnStock-based market and company endpoints are optional. Install
-`requirements-vnstock.txt` in environments where the package is available;
-CafeF, VNDirect, and the stateless NEWS URL fetch API do not require it.
+VnStock 4.0.9 is included in the deployment dependencies. Its official index is
+configured in both requirements.txt and pyproject.toml because the package is
+not available from the default PyPI index in the 2026-10-24 verification.
+`requirements-vnstock.txt` remains available for explicit installation.
+SDK availability does not imply provider credentials, full history, or verified units.
+The tested community financial responses contained four periods. Review quotas
+and metadata before using them in training; do not treat a parsed response as certified data.
+
+## Financial source repair, 2026-10-24
+
+CafeF statement parsing reads the period header separately from the data table,
+preserves stable source row IDs and exact decimal strings, skips unavailable cells,
+and rejects ambiguous table shapes. The page's display-unit widget is retained as
+unverified evidence; it does not set the raw numeric unit scale.
+
+`GET /api/v1/disclosures/FPT?year=2025` returns `financial.disclosures.v1`.
+Omit year to retrieve supported archived quarterly documents from FPT's official
+investor listing. Publication comes only from `actualPublishedAt`, scope from the
+individual document title, and `report_version_id` identifies that archived record.
+`revision_status=UNKNOWN` means original release versus revision is unverified.
+Day-only dates use end-of-day Asia/Ho_Chi_Minh availability. Other issuers return 422
+until an official adapter is implemented. No vendor-value metadata is overwritten.
+
+The Java backend owns authenticated refresh, validation, persistence and audit.
+This source API is stateless. Documents remain `training_eligible=false` until the
+corresponding values and historical release version are independently reconciled.
+The allowlisted `fpt-ir` proxy supports retrieving the original official PDFs.
+
+Local verification: 36 Python tests; real Spring ingestion for CafeF/VNStock/VNDirect;
+88 official FPT document records, repeat insert count zero. Vercel acceptance must
+be checked against `/api/v1/health` build_commit after deployment; local tests alone
+do not establish that the production alias has the new build.
 
 Swagger backend: `http://127.0.0.1:8000/docs`
 

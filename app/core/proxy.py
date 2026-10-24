@@ -16,6 +16,8 @@ class ProxyProvider:
 
 
 _DEFAULT_PROVIDERS: dict[str, ProxyProvider] = {
+    "fpt-ir": ProxyProvider(code="fpt-ir", base_url="https://fpt.com",
+                            default_headers={"Accept":"*/*","User-Agent":"Mozilla/5.0"}),
     "vndirect": ProxyProvider(
         code="vndirect",
         base_url="https://api-finfo.vndirect.com.vn/v4",

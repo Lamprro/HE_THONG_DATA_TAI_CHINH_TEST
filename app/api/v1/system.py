@@ -51,9 +51,9 @@ def health() -> dict:
     return {
         "status": "ok",
         "service": "financial-data-api-playground",
-        "version": "0.7.0",
+        "version": "0.7.1",
         "build_commit": os.getenv("VERCEL_GIT_COMMIT_SHA", os.getenv("APP_BUILD_COMMIT", "unknown")),
-        "data_contracts": ["financial.metadata.v1", "vndirect.ratios.history.v1", "foreign_trades.v1", "native-kbs-index", "native-bis-monthly"],
+        "data_contracts": ["financial.disclosures.v1", "financial.metadata.v1", "vndirect.ratios.history.v1", "foreign_trades.v1", "native-kbs-index", "native-bis-monthly"],
         "proxy_mode": "allowlisted-passthrough",
         "macro_schema": "macro_observations.v1",
         "macro_country": "VNM",
@@ -65,8 +65,8 @@ def providers() -> dict:
     vnstock = asdict(vnstock_provider.info)
     if vnstock_provider.info.status == "unavailable":
         vnstock["message"] = (
-            "VnStock endpoints are registered but unavailable because the optional "
-            "vnstock package is not installed in this runtime."
+            "VnStock endpoints are registered but unavailable because the required "
+            "vnstock package is missing or could not initialize in this runtime."
         )
 
     news = asdict(vnstock_news_provider.info)

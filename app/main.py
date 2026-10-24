@@ -12,6 +12,7 @@ from app.api.v1.url_fetch import router as url_fetch_router
 from app.api.v1.macro import router as macro_router
 from app.api.v1.kbs import router as kbs_router
 from app.api.v1.foreign import router as foreign_router
+from app.api.v1.disclosures import router as disclosures_router
 
 TAGS = [
     {
@@ -58,7 +59,7 @@ TAGS = [
 
 app = FastAPI(
     title="Financial Data & News API Playground",
-    version="0.7.0",
+    version="0.7.1",
     summary="Financial-data adapters plus transparent third-party API passthrough",
     description=(
         "Provider-oriented API playground for the AI Financial Data Analysis project. "
@@ -83,6 +84,7 @@ app.add_middleware(
 )
 
 app.include_router(system_router, prefix="/api/v1")
+app.include_router(disclosures_router, prefix="/api/v1")
 app.include_router(proxy_router, prefix="/api/v1/proxy")
 app.include_router(vnstock_router, prefix="/api/v1/vnstock")
 app.include_router(news_router, prefix="/api/v1/vnstock-news")
