@@ -16,6 +16,9 @@ class ProxyProvider:
 
 
 _DEFAULT_PROVIDERS: dict[str, ProxyProvider] = {
+    "acb-ir": ProxyProvider(code="acb-ir", base_url="https://acb.com.vn", default_headers={"Accept":"*/*","User-Agent":"Mozilla/5.0"}),
+    "hpg-ir": ProxyProvider(code="hpg-ir", base_url="https://file.hoaphat.com.vn", default_headers={"Accept":"*/*","User-Agent":"Mozilla/5.0"}),
+    "vnm-ir": ProxyProvider(code="vnm-ir", base_url="https://d8um25gjecm9v.cloudfront.net", default_headers={"Accept":"*/*","User-Agent":"Mozilla/5.0"}),
     "fpt-ir": ProxyProvider(code="fpt-ir", base_url="https://fpt.com",
                             default_headers={"Accept":"*/*","User-Agent":"Mozilla/5.0"}),
     "vndirect": ProxyProvider(

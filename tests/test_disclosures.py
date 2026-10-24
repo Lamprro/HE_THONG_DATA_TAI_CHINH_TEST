@@ -26,5 +26,5 @@ class DisclosureTests(unittest.TestCase):
   r=record();r['name']='Báo cáo tài chính quý 2 năm 2025'
   self.assertEqual(parse_fpt_disclosures(html([r]))[0]['report_scope'],'UNKNOWN')
  def test_unsupported_issuer_is_explicit(self):
-  response=TestClient(app).get('/api/v1/disclosures/HPG');self.assertEqual(response.status_code,422)
+  response=TestClient(app).get('/api/v1/disclosures/NOTREGISTERED');self.assertEqual(response.status_code,422)
   self.assertEqual(response.json()['detail']['code'],'ISSUER_NOT_SUPPORTED')

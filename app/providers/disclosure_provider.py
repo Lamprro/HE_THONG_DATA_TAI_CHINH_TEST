@@ -10,6 +10,7 @@ import httpx
 from bs4 import BeautifulSoup
 from app.core.financial_metadata import _plain
 from app.core.serialization import utc_now_iso
+from app.providers.issuer_disclosures import ISSUERS, parse_hpg, parse_vnm, parse_acb, report_period
 
 FPT_LISTING='https://fpt.com/vi/nha-dau-tu/thong-tin-cong-bo'
 
@@ -31,22 +32,27 @@ def parse_fpt_disclosures(html):
         title=str(record.get('name',''));plain=_plain(title);path=record['pdfUrl']
         if not ('bao cao tai chinh' in plain or 'bctc' in plain):continue
         if not re.fullmatch(r'/api/media/[A-Za-z0-9_.-]+\.pdf',path):continue
-        scope='CONSOLIDATED' if 'hop nhat' in plain else 'SEPARATE' if 'rieng le' in plain else 'UNKNOWN'
+        scope='CONSOLIDATED' if 'hop nhat' in plain else 'SEPARATE' if ('rieng' in plain or 'cong ty me' in plain) else 'UNKNOWN'
         match=re.search(r'quy\s*(iv|iii|ii|i|[1-4])\b.*?(20\d{2})',plain)
         period_source='name'
         if not match:
             match=re.search(r'quy[_ -]*(iv|iii|ii|i|[1-4])[_ -]*(?:nam[_ -]*)?(20\d{2})',_plain(path));period_source='pdfUrl'
-        if not match:continue
-        quarter=int(match[1]) if match[1].isdigit() else {'i':1,'ii':2,'iii':3,'iv':4}[match[1]]
-        year=int(match[2]);month=quarter*3
-        end=date(year,month,calendar.monthrange(year,month)[1]);published=record.get('actualPublishedAt')
+        if match:
+            quarter=int(match[1]) if match[1].isdigit() else {'i':1,'ii':2,'iii':3,'iv':4}[match[1]]
+            year=int(match[2]);month=quarter*3
+            end=date(year,month,calendar.monthrange(year,month)[1]);kind='QUARTER'
+        else:
+            parsed=report_period(title)
+            if not parsed or any(x in plain for x in ['giai trinh','gia han','hop dong']):continue
+            end,kind=parsed;period_source='name'
+        published=record.get('actualPublishedAt')
         try:published_date=date.fromisoformat(published)
         except (ValueError,TypeError):continue
         if published_date<end or published_date>datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).date():continue
         revised=any(word in plain for word in ['dieu chinh','dinh chinh','thay the','restated'])
         # A document ID identifies this archived record, not proof of first release.
         output.append(dict(document_id=ident,symbol='FPT',title=title,period_end=end.isoformat(),
-            report_scope=scope,published_on=published,publication_precision='DAY',
+            report_scope=scope,report_kind=kind,published_on=published,publication_precision='DAY',
             available_at=published+'T23:59:59.999999+07:00',
             revision_status='RESTATED' if revised else 'UNKNOWN',
             report_version_id='FPT_IR:'+ident,document_url=urljoin(FPT_LISTING,path),
@@ -64,19 +70,30 @@ class DisclosureProvider:
     def __init__(self):
         self.client=httpx.Client(timeout=25,follow_redirects=False,headers={'User-Agent':'Mozilla/5.0','Accept':'text/html'})
 
-    def fetch(self,symbol,year=None):
-        if symbol!='FPT':raise ValueError('No verified official disclosure adapter registered for this issuer')
-        with self.client.stream('GET',FPT_LISTING) as response:
+    def fetch(self,symbol,year=None,page=1):
+        if symbol not in ISSUERS:raise ValueError('No official disclosure adapter registered for this issuer')
+        if not 1<=page<=100 or (symbol!='HPG' and page!=1):raise ValueError('Invalid listing page')
+        config=ISSUERS[symbol];url=config['listing']
+        if symbol=='HPG':url+=f'?page={page}'
+        if symbol=='VNM' and year is not None:url+=f'?year={year}'
+        if symbol=='ACB':url+=f'-{year or datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).year}'
+        with self.client.stream('GET',url) as response:
             response.raise_for_status();chunks=[];size=0
             for chunk in response.iter_bytes():
                 size+=len(chunk)
                 if size>8*1024*1024:raise ValueError('Disclosure listing exceeds 8 MiB')
                 chunks.append(chunk)
-        raw=b''.join(chunks);html=raw.decode('utf-8');records=parse_fpt_disclosures(html)
-        if not records:raise ValueError('Official listing has no supported disclosure records; source format may have changed')
+        raw=b''.join(chunks);html=raw.decode('utf-8')
+        if symbol=='FPT':records,more=parse_fpt_disclosures(html),False
+        elif symbol=='HPG':records,more=parse_hpg(html,url)
+        elif symbol=='ACB':records,more=parse_acb(html,url)
+        else:records,more=parse_vnm(html,url)
+        if not records:raise ValueError('Official listing has no supported disclosure records; source format may have changed or requested year is empty')
         if year is not None:records=[x for x in records if x['period_end'].startswith(str(year)+'-')]
-        return dict(schema_version='financial.disclosures.v1',provider='fpt-ir',symbol=symbol,
-            retrieved_at=utc_now_iso(),source_url=FPT_LISTING,source_sha256=hashlib.sha256(raw).hexdigest(),
+        return dict(schema_version='financial.disclosures.v1',provider=config['provider'],symbol=symbol,
+            retrieved_at=utc_now_iso(),source_url=url,source_sha256=hashlib.sha256(raw).hexdigest(),
+            page=page,next_page=page+1 if more else None,coverage='LISTING_PAGE',
+            pagination_supported=symbol!='ACB',
             count=len(records),data=records,
             limitations=['Metadata belongs to official documents, not automatically to vendor values.',
                           'Original-release vintage is not certified by an archived listing.',
