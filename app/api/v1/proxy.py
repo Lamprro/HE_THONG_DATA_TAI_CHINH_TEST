@@ -117,12 +117,21 @@ async def passthrough_proxy(
     upstream_path: str = Path(..., examples=["stock_prices"]),
 ) -> Response:
     selected = resolve_proxy_provider(provider)
+    if provider in {'fpt-ir','hpg-ir','vnm-ir','acb-ir'} and request.method not in {'GET','HEAD'}:
+        raise HTTPException(status_code=405,detail='Official documents are read-only')
     upstream_url = build_upstream_url(
         selected,
         upstream_path,
         request.url.query,
     )
 
+    request_chunks=[]
+    request_size=0
+    async for chunk in request.stream():
+        request_size+=len(chunk)
+        if request_size>1024*1024:
+            raise HTTPException(status_code=413,detail='Proxy request exceeds 1 MiB')
+        request_chunks.append(chunk)
     try:
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(30.0),
@@ -132,9 +141,16 @@ async def passthrough_proxy(
                 method=request.method,
                 url=upstream_url,
                 headers=_request_headers(request, selected.default_headers),
-                content=await request.body(),
+                content=b''.join(request_chunks),
             ) as upstream:
-                body = b"".join([chunk async for chunk in upstream.aiter_raw()])
+                chunks=[]
+                size=0
+                async for chunk in upstream.aiter_raw():
+                    size+=len(chunk)
+                    if size>25*1024*1024:
+                        raise HTTPException(status_code=502,detail='Upstream response exceeds 25 MiB')
+                    chunks.append(chunk)
+                body = b"".join(chunks)
                 return _passthrough_response(upstream, body)
 
     except httpx.TimeoutException as exc:

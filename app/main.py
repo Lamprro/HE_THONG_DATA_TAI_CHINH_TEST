@@ -13,6 +13,7 @@ from app.api.v1.macro import router as macro_router
 from app.api.v1.kbs import router as kbs_router
 from app.api.v1.foreign import router as foreign_router
 from app.api.v1.disclosures import router as disclosures_router
+from app.core.access import service_access
 
 TAGS = [
     {
@@ -59,7 +60,7 @@ TAGS = [
 
 app = FastAPI(
     title="Financial Data & News API Playground",
-    version="0.7.1",
+    version="0.7.2",
     summary="Financial-data adapters plus transparent third-party API passthrough",
     description=(
         "Provider-oriented API playground for the AI Financial Data Analysis project. "
@@ -82,6 +83,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
     allow_headers=["*"],
 )
+app.middleware('http')(service_access)
 
 app.include_router(system_router, prefix="/api/v1")
 app.include_router(disclosures_router, prefix="/api/v1")
