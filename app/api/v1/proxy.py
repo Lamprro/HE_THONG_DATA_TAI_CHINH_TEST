@@ -117,7 +117,7 @@ async def passthrough_proxy(
     upstream_path: str = Path(..., examples=["stock_prices"]),
 ) -> Response:
     selected = resolve_proxy_provider(provider)
-    if provider in {'fpt-ir','hpg-ir','vnm-ir','acb-ir'} and request.method not in {'GET','HEAD'}:
+    if provider in {'fpt-ir','hpg-ir','vnm-ir','acb-ir','eib-ir','hsg-ir'} and request.method not in {'GET','HEAD'}:
         raise HTTPException(status_code=405,detail='Official documents are read-only')
     upstream_url = build_upstream_url(
         selected,

@@ -10,7 +10,7 @@ import httpx
 from bs4 import BeautifulSoup
 from app.core.financial_metadata import _plain
 from app.core.serialization import utc_now_iso
-from app.providers.issuer_disclosures import ISSUERS, parse_hpg, parse_vnm, parse_acb, report_period
+from app.providers.issuer_disclosures import ISSUERS, parse_hpg, parse_vnm, parse_acb, parse_eib, parse_hsg, report_period
 
 FPT_LISTING='https://fpt.com/vi/nha-dau-tu/thong-tin-cong-bo'
 
@@ -72,9 +72,10 @@ class DisclosureProvider:
 
     def fetch(self,symbol,year=None,page=1):
         if symbol not in ISSUERS:raise ValueError('No official disclosure adapter registered for this issuer')
-        if not 1<=page<=100 or (symbol!='HPG' and page!=1):raise ValueError('Invalid listing page')
+        if not 1<=page<=100 or (symbol not in {'HPG','HSG'} and page!=1):raise ValueError('Invalid listing page')
         config=ISSUERS[symbol];url=config['listing']
         if symbol=='HPG':url+=f'?page={page}'
+        if symbol=='HSG':url+=f'?pg={page}'
         if symbol=='VNM' and year is not None:url+=f'?year={year}'
         if symbol=='ACB':url+=f'-{year or datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).year}'
         with self.client.stream('GET',url) as response:
@@ -87,6 +88,8 @@ class DisclosureProvider:
         if symbol=='FPT':records,more=parse_fpt_disclosures(html),False
         elif symbol=='HPG':records,more=parse_hpg(html,url)
         elif symbol=='ACB':records,more=parse_acb(html,url)
+        elif symbol=='HSG':records,more=parse_hsg(html,url)
+        elif symbol=='EIB':records,more=parse_eib(html,url)
         else:records,more=parse_vnm(html,url)
         if not records:raise ValueError('Official listing has no supported disclosure records; source format may have changed or requested year is empty')
         if year is not None:records=[x for x in records if x['period_end'].startswith(str(year)+'-')]

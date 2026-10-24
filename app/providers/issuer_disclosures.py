@@ -4,13 +4,19 @@ import hashlib
 import json
 import re
 from datetime import date, datetime
-from urllib.parse import urlsplit, quote
+from urllib.parse import urlsplit, quote, unquote, urljoin, parse_qs
 from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
 from app.core.financial_metadata import _plain
 
 ISSUERS = {
+    'EIB': {'provider': 'eib-ir', 'source_code': 'EIB_IR',
+            'listing': 'https://eximbank.com.vn/bao-cao-tai-chinh',
+            'pdf_host': 'media.eximbank.com.vn', 'pdf_prefix': '/exim/files/'},
+    'HSG': {'provider': 'hsg-ir', 'source_code': 'HSG_IR',
+            'listing': 'https://hoasengroup.vn/vi/quan-he-co-dong/bao-cao-tai-chinh/29/',
+            'pdf_host': 'hoasengroup.vn', 'pdf_prefix': '/wp-content/uploads/'},
     'ACB': {'provider': 'acb-ir', 'source_code': 'ACB_IR',
             'listing': 'https://acb.com.vn/nha-dau-tu/bao-cao-tai-chinh',
             'pdf_host': 'acb.com.vn', 'pdf_prefix': '/acbwebsite/'},
@@ -31,7 +37,10 @@ def allowed_pdf(symbol, url):
     u = urlsplit(url)
     return (u.scheme == 'https' and u.netloc == source['pdf_host']
             and u.path.startswith(source['pdf_prefix']) and u.path.lower().endswith('.pdf')
-            and not u.query and not u.fragment and not any(x in u.path.replace('%20','') for x in ('..', '%', '\\')))
+            and not u.query and not u.fragment
+            and not re.search(r'%2f|%5c|%25', u.path, re.I)
+            and not any(x in unquote(u.path) for x in ('..', '%', '\\'))
+            and all(ord(c) >= 32 and ord(c) != 127 for c in unquote(u.path)))
 
 
 def report_period(title):
@@ -58,7 +67,7 @@ def make_document(symbol, record, listing_url, period=None):
     plain = _plain(title)
     if not ('bao cao tai chinh' in plain or 'bctc' in plain):
         return None
-    if 'giai trinh' in plain or 'gia han' in plain or 'hop dong' in plain:
+    if ('giai trinh' in plain and not record.get('financial_attachment_verified')) or 'gia han' in plain or 'hop dong' in plain:
         return None
     period = period or report_period(title)
     if not period or not allowed_pdf(symbol, record['pdfUrl']):
@@ -167,3 +176,99 @@ def parse_acb(html, listing_url):
         if doc:
             output.append(doc)
     return output, False  # server-rendered page only; the site's client pagination is not supported
+
+
+def hsg_period(title):
+    plain = _plain(title.replace('\u2013','-').replace('\u2014','-'))
+    years = re.search(r'(20\d{2})\s*[-–]\s*(20\d{2})', plain)
+    if not years or int(years[2]) != int(years[1]) + 1:
+        return None
+    start, end = int(years[1]), int(years[2])
+    quarter = re.search(r'quy\s*(iv|iii|ii|i|[1-4])\b', plain)
+    if quarter:
+        q = int(quarter[1]) if quarter[1].isdigit() else {'i':1,'ii':2,'iii':3,'iv':4}[quarter[1]]
+        year, month = (start,12) if q == 1 else (end,(q-1)*3)
+        return date(year, month, calendar.monthrange(year,month)[1]), 'QUARTER'
+    if re.search(r'6 thang|ban nien|giua nien do', plain):
+        return date(end,3,31), 'HALF_YEAR'
+    if 'nien do' in plain or 'ndtc' in plain:
+        return date(end,9,30), 'ANNUAL'
+    return None
+
+
+def parse_hsg(html, listing_url):
+    soup = BeautifulSoup(html, 'html.parser')
+    output = {}
+    for item in soup.select('.wrap-item .item-content'):
+        heading, day = item.select_one('.title-post'), item.select_one('.date')
+        if not heading or not day:
+            continue
+        title = heading.get_text(' ', strip=True)
+        period = hsg_period(title)
+        stamp = re.search(r'\b(\d{2}/\d{2}/20\d{2})\b', day.get_text())
+        if not period or not stamp:
+            continue
+        published = datetime.strptime(stamp[1], '%d/%m/%Y').date().isoformat()
+        for attachment in item.select('.item-sub'):
+            anchor, label = attachment.select_one('a.btn-download[href]'), attachment.select_one('.btn-viewer')
+            if not anchor or not label:
+                continue
+            attachment_title = label.get_text(' ',strip=True)
+            plain_attachment = _plain(attachment_title).replace('_',' ')
+            if not re.search(r'\bbctc\b|bao cao tai chinh', plain_attachment) or 'giai trinh' in plain_attachment:
+                continue
+            url = quote(unquote(urljoin(listing_url, anchor['href'])),safe=':/')
+            ident = hashlib.sha256(url.encode()).hexdigest()
+            record = dict(id=ident, name=title, pdfUrl=url, actualPublishedAt=published,
+                          publication_source_field='article.date', publication_source_text=day.get_text(' ',strip=True),
+                          attachment_title=attachment_title, financial_attachment_verified=True,
+                          fiscal_calendar='OCTOBER_TO_SEPTEMBER')
+            doc = make_document('HSG',record,listing_url,period)
+            if doc:
+                doc['fiscal_calendar']='OCTOBER_TO_SEPTEMBER'
+                doc['period_evidence']={'field':'name','value':title,'calendar':'OCTOBER_TO_SEPTEMBER'}
+                output[ident]=doc
+    current=int(parse_qs(urlsplit(listing_url).query).get('pg',['1'])[0])
+    more=any(int(parse_qs(urlsplit(a['href']).query).get('pg',['0'])[0]) > current
+             for a in soup.select('.alm-paging a[href]'))
+    return list(output.values()), more
+
+
+def parse_eib(html, listing_url):
+    records = {}
+    for script in BeautifulSoup(html,'html.parser').find_all('script'):
+        text = script.string or ''
+        if not text.startswith('self.__next_f.push('):
+            continue
+        try:
+            payload = json.loads(text[text.index('(')+1:text.rfind(')')])
+        except (ValueError,IndexError):
+            continue
+        if len(payload)<2 or not isinstance(payload[1],str):
+            continue
+        for match in re.finditer(r'\{"id":',payload[1]):
+            try:
+                row,_ = json.JSONDecoder().raw_decode(payload[1][match.start():])
+            except ValueError:
+                continue
+            if row.get('title') and isinstance(row.get('featured_image_1'),dict):
+                records[str(row['id'])]=row
+    output=[]
+    for ident,row in records.items():
+        published=row.get('published_start')
+        if not published:
+            continue
+        try:
+            stamp=datetime.fromisoformat(published)
+            if stamp.tzinfo is None:
+                continue
+            day=stamp.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date().isoformat()
+        except ValueError:
+            continue
+        url=quote(unquote(row['featured_image_1'].get('path','')),safe=':/')
+        record=dict(id=ident,name=row['title'],pdfUrl=url,actualPublishedAt=day,
+                    publication_source_field='published_start',publication_source_text=published,source_record=row)
+        doc=make_document('EIB',record,listing_url)
+        if doc:
+            output.append(doc)
+    return output, False
