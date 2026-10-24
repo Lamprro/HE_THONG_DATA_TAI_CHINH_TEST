@@ -299,46 +299,8 @@ class CafeFProvider:
 
         response.raise_for_status()
 
-        tables = pd.read_html(
-            StringIO(response.text),
-            attrs={
-                "id": "tableContent"
-            },
-        )
-
-        if not tables:
-            return pd.DataFrame()
-
-        df = tables[0]
-
-        # CafeF có thể trả MultiIndex columns.
-        # Hiện tại chỉ flatten, chưa chuẩn hóa dữ liệu.
-        if isinstance(
-            df.columns,
-            pd.MultiIndex,
-        ):
-            df.columns = [
-                " | ".join(
-                    str(value)
-                    for value in column
-                    if (
-                        str(value) != "nan"
-                        and not str(value).startswith(
-                            "Unnamed"
-                        )
-                    )
-                ).strip()
-                for column in df.columns
-            ]
-        else:
-            df.columns = [
-                str(column)
-                for column in df.columns
-            ]
-
-        result = df.reset_index(drop=True)
-        result.attrs["financial_metadata"] = cafef_metadata(response.text, str(response.url), statement_name)
-        return result
+        from app.core.cafef_statements import parse_cafef_statement
+        return parse_cafef_statement(response.text, str(response.url), statement_name)
 
     def balance_sheet(
         self,

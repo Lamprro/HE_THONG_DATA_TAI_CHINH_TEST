@@ -71,6 +71,10 @@ def financial_metadata(df, dataset: str, provider: str, *, _per_period=True) -> 
     result.update(revision_status="UNKNOWN",revision_published_at=None,publication_precision="UNKNOWN")
     if supplied.get("source_url"):
         result["source_url"] = supplied["source_url"]
+    for key in ("source_sha256", "unverified_display_unit", "period_headers"):
+        if supplied.get(key) is not None:
+            result[key] = supplied[key]
+    result["limitations"].extend(supplied.get("limitations", []))
     for field, (aliases, normalize) in fields.items():
         evidence = []
         values = set()
