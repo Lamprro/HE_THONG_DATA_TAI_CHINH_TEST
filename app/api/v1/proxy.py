@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 from fastapi import APIRouter, HTTPException, Path, Request
 from fastapi.responses import Response
+from app.core.provider_tls import eib_tls_context
 
 from app.core.proxy import (
     build_upstream_url,
@@ -136,6 +137,7 @@ async def passthrough_proxy(
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(30.0),
             follow_redirects=False,
+            verify=eib_tls_context() if provider == 'eib-ir' else True,
         ) as client:
             async with client.stream(
                 method=request.method,

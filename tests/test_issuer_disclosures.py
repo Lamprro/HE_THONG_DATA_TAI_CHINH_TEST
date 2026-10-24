@@ -71,10 +71,10 @@ class FiscalIssuerTests(unittest.TestCase):
         html='''<div class="wrap-item"><div class="item-content"><div class="date">29/07/2017</div>
         <h4 class="title-post">Bao cao tai chinh hop nhat Quy III NDTC 2016-2017</h4>
         <div class="item-sub"><a class="btn-viewer">BCTC_hop_nhat_Quy_3.pdf</a>
-        <a class="btn-download" href="/wp-content/uploads/report old.pdf"></a></div></div></div>'''
+        <a class="btn-download" href="/wp-content/uploads/report%20old (1).pdf"></a></div></div></div>'''
         rows,_=parse_hsg(html,ISSUERS['HSG']['listing']+'?pg=19')
         self.assertEqual(rows[0]['period_end'],'2017-06-30')
-        self.assertTrue(rows[0]['document_url'].endswith('report%20old.pdf'))
+        self.assertTrue(rows[0]['document_url'].endswith('report%20old%20(1).pdf'))
 
     def test_eib_requires_publication_not_created_at(self):
         from app.providers.issuer_disclosures import parse_eib

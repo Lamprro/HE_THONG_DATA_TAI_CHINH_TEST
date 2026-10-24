@@ -217,7 +217,9 @@ def parse_hsg(html, listing_url):
             plain_attachment = _plain(attachment_title).replace('_',' ')
             if not re.search(r'\bbctc\b|bao cao tai chinh', plain_attachment) or 'giai trinh' in plain_attachment:
                 continue
-            url = quote(unquote(urljoin(listing_url, anchor['href'])),safe=':/')
+            # Preserve the issuer's existing escapes/parentheses so a refresh
+            # does not create a second identity for the same archived document.
+            url = quote(urljoin(listing_url, anchor['href']),safe=':/%()')
             ident = hashlib.sha256(url.encode()).hexdigest()
             record = dict(id=ident, name=title, pdfUrl=url, actualPublishedAt=published,
                           publication_source_field='article.date', publication_source_text=day.get_text(' ',strip=True),

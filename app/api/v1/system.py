@@ -51,7 +51,7 @@ def health() -> dict:
     return {
         "status": "ok",
         "service": "financial-data-api-playground",
-        "version": "0.7.3",
+        "version": "0.7.4",
         "build_commit": os.getenv("VERCEL_GIT_COMMIT_SHA", os.getenv("APP_BUILD_COMMIT", "unknown")),
         "data_contracts": ["financial.disclosures.v1", "financial.metadata.v1", "vndirect.ratios.history.v1", "foreign_trades.v1", "native-kbs-index", "native-bis-monthly"],
         "proxy_mode": "allowlisted-passthrough",
