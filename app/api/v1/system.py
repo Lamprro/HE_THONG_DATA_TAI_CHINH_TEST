@@ -34,6 +34,7 @@ def capabilities(request: Request) -> dict:
             {"operation": "FOREIGN_TRADES", "provider": "cafef", "maximum_calendar_years": 15,
              "both_dates_required_for_history": True},
             {"operation": "INDEX_OHLCV", "provider": "kbs", "native_adapter": True},
+            {"operation": "INDEX_OHLCV", "provider": "cafef", "native_adapter": True, "maximum_calendar_days": 366, "symbols": ["VNINDEX", "VN30"]},
             {"operation": "MACRO_OBSERVATIONS", "providers": ["worldbank", "bis"],
              "country": "VNM", "monthly_opt_in": "include_monthly"},
         ],

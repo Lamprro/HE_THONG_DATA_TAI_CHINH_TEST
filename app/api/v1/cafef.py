@@ -541,3 +541,20 @@ def events(
 
     except Exception as exc:
         raise provider_error(exc) from exc
+
+
+@router.get("/indices/{symbol}/ohlcv", tags=["cafef-index"])
+def index_ohlcv(symbol: str, start: date, end: date):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from app.providers.cafef_index_provider import index_history
+    if end > datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).date():
+        raise HTTPException(400, "Future index end date")
+    try:
+        result=index_history(symbol.upper(), start, end)
+        result["retrieved_at"]=utc_now_iso()
+        return result
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, "CafeF index source unavailable") from exc
