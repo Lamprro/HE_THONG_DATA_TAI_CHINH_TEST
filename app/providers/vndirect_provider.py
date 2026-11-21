@@ -326,27 +326,38 @@ class VnDirectProvider:
         # 1. Lấy số liệu BCTC
         # -----------------------------------------------------
 
-        statement_response = self.client.get(
-            f"{self.BASE_URL}/financial_statements",
-            params={
-                "q": (
-                    f"code:{symbol}"
-                    f"~modelType:{model_type}"
-                    f"~reportType:{report_type}"
-                    f"~fiscalDate:{resolved_fiscal_date}"
-                ),
-                "size": 1000,
-                "page": 1,
-            },
+        query_filter = (
+            f"code:{symbol}"
+            f"~modelType:{model_type}"
+            f"~reportType:{report_type}"
         )
+        if fiscal_date is not None:
+            query_filter += f"~fiscalDate:{fiscal_date}"
 
-        statement_response.raise_for_status()
-
-        statement_payload = statement_response.json()
-
-        statement_rows = (
-            statement_payload.get("data") or []
-        )
+        statement_rows = []
+        page = 1
+        source_url = None
+        while True:
+            statement_response = self.client.get(
+                f"{self.BASE_URL}/financial_statements",
+                params={
+                    "q": query_filter,
+                    "size": 1000,
+                    "page": page,
+                    "sort": "fiscalDate:desc",
+                },
+            )
+            statement_response.raise_for_status()
+            if source_url is None:
+                source_url = str(statement_response.url)
+            statement_payload = statement_response.json()
+            page_rows = statement_payload.get("data") or []
+            if not page_rows:
+                break
+            statement_rows.extend(page_rows)
+            if len(page_rows) < 1000:
+                break
+            page += 1
 
         if not statement_rows:
             return pd.DataFrame()
@@ -374,7 +385,11 @@ class VnDirectProvider:
 
         if not model_rows:
             result = pd.DataFrame(statement_rows)
-            result.attrs["financial_metadata"] = {"source_url": str(statement_response.url)}
+            result.attrs["financial_metadata"] = {
+                "source_url": source_url or str(statement_response.url),
+                "currency": "VND",
+                "unit_scale": 1,
+            }
             return result
 
         # -----------------------------------------------------
@@ -415,17 +430,23 @@ class VnDirectProvider:
         )
 
         # -----------------------------------------------------
-        # 4. Sắp theo thứ tự hiển thị của VNDirect
+        # 4. Sắp theo thứ tự hiển thị của VNDirect (ổn định theo kỳ & mã chỉ tiêu)
         # -----------------------------------------------------
 
-        if "displayOrder" in result.columns:
+        sort_cols = [c for c in ["fiscalDate", "displayOrder", "itemCode"] if c in result.columns]
+        if sort_cols:
             result = result.sort_values(
-                "displayOrder",
+                sort_cols,
+                ascending=[False, True, True][:len(sort_cols)],
                 na_position="last",
             )
 
         result = result.reset_index(drop=True)
-        result.attrs["financial_metadata"] = {"source_url": str(statement_response.url)}
+        result.attrs["financial_metadata"] = {
+            "source_url": source_url or str(statement_response.url),
+            "currency": "VND",
+            "unit_scale": 1,
+        }
         return result
 
     # =========================================================
