@@ -6,6 +6,7 @@ Index prices stay in points; stock price scaling is deliberately outside this ad
 from datetime import date
 import math
 import httpx
+from app.core.index_calendar import validate_index_session
 
 BASE = "https://kbbuddywts.kbsec.com.vn/iis-server/investment"
 CODES = {"VNINDEX", "VN30", "HNXINDEX"}
@@ -28,6 +29,7 @@ def index_history(symbol: str, start: date, end: date, client=None):
             day = date.fromisoformat(str(source["t"]).split(" ")[0])
             if not start <= day <= end or day in seen:
                 raise ValueError("Duplicate or out-of-window source index bar")
+            validate_index_session(symbol, day)
             seen.add(day)
             raw_values = [source[k] for k in ("o","h","l","c","v")]
             if any(isinstance(v,bool) or not isinstance(v,(int,float,str)) for v in raw_values):
@@ -37,7 +39,8 @@ def index_history(symbol: str, start: date, end: date, client=None):
                 raise ValueError("Invalid index numeric value")
             opening,high,low,closing,volume=values
             if high<max(opening,closing,low) or low>min(opening,closing,high):
-                raise ValueError("Invalid index OHLC range")
+                raise ValueError(f"Invalid index OHLC range: symbol={symbol}, date={day.isoformat()}, "
+                    f"open={opening}, high={high}, low={low}, close={closing}")
             rows.append(dict(trading_date=day.isoformat(),open=opening,high=high,low=low,
                 close=closing,volume=volume,source_record=source))
         return dict(provider="kbs",dataset="index_ohlcv",symbol=symbol,interval="1D",count=len(rows),

@@ -230,3 +230,31 @@ Mở `frontend/index.html`, nhập Backend URL rồi bấm `Kết nối`. Fronte
 ## Security note
 
 Không triển khai endpoint kiểu `/proxy?url=https://bat-ky-domain-nao...` vì cách đó biến backend thành open proxy và tạo rủi ro SSRF. Phiên bản hiện tại chỉ proxy tới provider nằm trong allowlist/registry.
+
+
+### Native market indices (19 November 2026)
+
+`GET /api/v1/cafef/indices/{symbol}/ohlcv?start=YYYY-MM-DD&end=YYYY-MM-DD`
+accepts VNINDEX and VN30, with at most 366 calendar days per request. VN30 maps to the
+source row symbol VN30INDEX. Historical identity is checked on every row; CafeF's
+`Data.Index` banner is not used because it reports VNINDEX even for historical VN30 rows.
+Values remain index points, source records and request URLs are preserved, and pagination,
+dates, duplicates and OHLC ranges are checked. No price is repaired or synthesized.
+
+Both native index adapters reject known exceptional HOSE closures 23–24 January 2018.
+This small verified exception list is not a complete exchange calendar. KBS can contain
+a seemingly valid bar on a closed day, so OHLC validity alone is insufficient.
+See `app/core/index_calendar.py` for evidence links.
+
+Proxy forwarding now removes hop-by-hop/Connection-nominated headers and merges names
+case-insensitively. This avoids duplicate User-Agent/Accept variants from the Spring client
+that caused CafeF to reject requests with 400 Invalid Header.
+
+Checks run: 17 focused Python transport tests (9 training-data quality, 5 CafeF index,
+3 proxy-header tests), all passed. Mock tests are separate from live Spring staging
+acceptance; the provider app never writes the business DB directly. Live receipts and
+source comparison are in the backend workspace `output/local-ai-review/index-staging-20261119`.
+
+### Chuẩn hóa giá cổ phiếu
+
+Các route QUOTE và OHLCV cổ phiếu của VNDirect, CafeF và VnStock trả contract `market_price.v1` với giá theo VND, kèm bản ghi nguồn tại `data[].source_record`. Java đọc được cả contract này và payload lịch sử. Các route chỉ số, BCTC và proxy giữ hợp đồng riêng.

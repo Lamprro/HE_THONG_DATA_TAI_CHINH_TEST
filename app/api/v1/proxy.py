@@ -20,6 +20,11 @@ _REQUEST_BLOCKED_HEADERS = {
     "cookie",
     "host",
     "keep-alive",
+    "http2-settings",
+    "upgrade",
+    "te",
+    "trailer",
+    "transfer-encoding",
     "proxy-authenticate",
     "proxy-authorization",
     "te",
@@ -43,13 +48,17 @@ _RESPONSE_BLOCKED_HEADERS = {
 
 def _request_headers(request: Request, defaults: dict[str, str]) -> dict[str, str]:
     headers = dict(defaults)
+    connection_headers = {name.strip().lower() for name in request.headers.get("connection", "").split(",") if name.strip()}
 
     for key, value in request.headers.items():
         lower = key.lower()
 
-        if lower in _REQUEST_BLOCKED_HEADERS or lower.startswith("x-forwarded-"):
+        if lower in _REQUEST_BLOCKED_HEADERS or lower in connection_headers or lower.startswith("x-forwarded-"):
             continue
 
+        for existing in list(headers):
+            if existing.lower() == lower:
+                del headers[existing]
         headers[key] = value
 
     return headers

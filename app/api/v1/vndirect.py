@@ -5,6 +5,11 @@ from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, Path, Query
 
+from app.core.market_normalization import (
+    MARKET_DATASETS,
+    market_contract_metadata,
+    normalize_market_records,
+)
 from app.core.serialization import dataframe_to_records, utc_now_iso
 from app.core.financial_metadata import financial_metadata
 from app.providers.vndirect_provider import vndirect_provider
@@ -34,11 +39,16 @@ def normalize_symbol(symbol: str) -> str:
 
 
 def provider_error(exc: Exception) -> HTTPException:
+    invalid_data = isinstance(exc, ValueError)
     return HTTPException(
         status_code=502,
         detail={
-            "message": "VNDirect upstream provider could not return data",
+            "message": (
+                "VNDirect upstream data failed validation"
+                if invalid_data else "VNDirect upstream provider could not return data"
+            ),
             "provider": "vndirect",
+            "category": "UPSTREAM_DATA_INVALID" if invalid_data else "UPSTREAM_FAILURE",
             "provider_error": str(exc),
         },
     )
@@ -52,6 +62,10 @@ def response(
     **meta,
 ) -> dict:
     rows = dataframe_to_records(data)
+    retrieved_at = utc_now_iso()
+    if dataset in MARKET_DATASETS:
+        rows = normalize_market_records("vndirect", dataset, symbol, rows, observed_at=retrieved_at)
+        meta.update(market_contract_metadata())
     if dataset in {"balance_sheet", "income_statement", "cash_flow"}:
         meta["financial_metadata"] = financial_metadata(data, dataset, "vndirect")
     if dataset == "ratios":
@@ -61,7 +75,7 @@ def response(
         "provider": "vndirect",
         "dataset": dataset,
         "symbol": symbol,
-        "retrieved_at": utc_now_iso(),
+        "retrieved_at": retrieved_at,
         "elapsed_ms": round(
             (perf_counter() - started) * 1000,
             2,
@@ -81,8 +95,8 @@ def response(
     tags=["vndirect-market"],
     summary="Get VNDirect historical OHLCV",
     description=(
-        "Historical market data directly from VNDirect. "
-        "Defaults to the latest 30 calendar days."
+        "Historical daily market data from VNDirect normalized to market_price.v1. "
+        "Prices and trading values use VND; source fields are retained under source_record."
     ),
 )
 def equity_ohlcv(
@@ -148,7 +162,7 @@ def equity_ohlcv(
     "/equities/{symbol}/quote",
     tags=["vndirect-market"],
     summary="Get latest VNDirect quote",
-    description="Latest available trading session from VNDirect.",
+    description="Latest VNDirect quote normalized to market_price.v1.",
 )
 def equity_quote(
     symbol: str = Path(

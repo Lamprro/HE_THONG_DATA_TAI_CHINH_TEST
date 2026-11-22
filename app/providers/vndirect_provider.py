@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from decimal import Decimal
 
 import httpx
 import pandas as pd
@@ -35,6 +36,22 @@ class VnDirectProvider:
                 "User-Agent": "Mozilla/5.0",
             },
         )
+
+    @staticmethod
+    def _symbol_rows(payload: dict, symbol: str, dataset: str) -> list[dict]:
+        """Reject an upstream response that cannot be attributed to this ticker."""
+        rows = payload.get("data")
+        if not isinstance(rows, list):
+            raise ValueError(f"VNDirect {dataset}: data is not an array")
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError(f"VNDirect {dataset}: data contains a non-object row")
+            code = row.get("code")
+            if not isinstance(code, str) or code.strip().upper() != symbol.upper():
+                raise ValueError(
+                    f"VNDirect {dataset}: row code {code!r} does not match {symbol}"
+                )
+        return rows
 
     # =========================================================
     # MARKET DATA
@@ -74,7 +91,7 @@ class VnDirectProvider:
 
             payload = response.json()
 
-            rows = payload.get("data") or []
+            rows = self._symbol_rows(payload, symbol, "stock_prices")
 
             if not rows:
                 break
@@ -115,7 +132,9 @@ class VnDirectProvider:
         if df.empty:
             return df
 
-        return df.head(1).reset_index(drop=True)
+        if "date" not in df.columns or df["date"].isna().any():
+            raise ValueError(f"VNDirect stock_prices: missing date for {symbol}")
+        return df.sort_values("date", ascending=False).head(1).reset_index(drop=True)
 
     # =========================================================
     # COMPANY
@@ -138,7 +157,7 @@ class VnDirectProvider:
 
         payload = response.json()
 
-        rows = payload.get("data") or []
+        rows = self._symbol_rows(payload, symbol, "stocks")
 
         return pd.DataFrame(rows)
 
@@ -170,7 +189,7 @@ class VnDirectProvider:
 
         payload = response.json()
 
-        rows = payload.get("data") or []
+        rows = self._symbol_rows(payload, symbol, "financial_statements")
 
         if not rows:
             return None
@@ -226,7 +245,7 @@ class VnDirectProvider:
 
             payload = response.json()
 
-            rows = payload.get("data") or []
+            rows = self._symbol_rows(payload, symbol, "financial_statements")
 
             if not rows:
                 return None
@@ -254,7 +273,7 @@ class VnDirectProvider:
 
         payload = response.json()
 
-        rows = payload.get("data") or []
+        rows = self._symbol_rows(payload, symbol, "financial_statements")
 
         if not rows:
             return None
@@ -289,6 +308,11 @@ class VnDirectProvider:
 
             if not model_rows:
                 continue
+
+            if any(row.get("modelType") != model_type for row in model_rows):
+                raise ValueError(
+                    f"VNDirect financial_models: wrong modelType for {symbol}"
+                )
 
             model_name = str(
                 model_rows[0].get("modelTypeName") or ""
@@ -326,27 +350,43 @@ class VnDirectProvider:
         # 1. Lấy số liệu BCTC
         # -----------------------------------------------------
 
-        statement_response = self.client.get(
-            f"{self.BASE_URL}/financial_statements",
-            params={
-                "q": (
-                    f"code:{symbol}"
-                    f"~modelType:{model_type}"
-                    f"~reportType:{report_type}"
-                    f"~fiscalDate:{resolved_fiscal_date}"
-                ),
-                "size": 1000,
-                "page": 1,
-            },
+        query_filter = (
+            f"code:{symbol}"
+            f"~modelType:{model_type}"
+            f"~reportType:{report_type}"
         )
+        if fiscal_date is not None:
+            query_filter += f"~fiscalDate:{fiscal_date}"
 
-        statement_response.raise_for_status()
-
-        statement_payload = statement_response.json()
-
-        statement_rows = (
-            statement_payload.get("data") or []
-        )
+        statement_rows = []
+        page = 1
+        source_url = None
+        while True:
+            statement_response = self.client.get(
+                f"{self.BASE_URL}/financial_statements",
+                params={
+                    "q": query_filter,
+                    "size": 1000,
+                    "page": page,
+                    "sort": "fiscalDate:desc",
+                },
+            )
+            statement_response.raise_for_status()
+            if source_url is None:
+                source_url = str(statement_response.url)
+            statement_payload = statement_response.json()
+            page_rows = self._symbol_rows(statement_payload, symbol, "financial_statements")
+            for row in page_rows:
+                if (Decimal(str(row.get("modelType"))) != model_type
+                        or row.get("reportType") != report_type
+                        or (fiscal_date is not None and row.get("fiscalDate") != fiscal_date)):
+                    raise ValueError(f"VNDirect financial_statements: wrong model/period for {symbol}")
+            if not page_rows:
+                break
+            statement_rows.extend(page_rows)
+            if len(page_rows) < 1000:
+                break
+            page += 1
 
         if not statement_rows:
             return pd.DataFrame()
@@ -368,13 +408,20 @@ class VnDirectProvider:
 
         model_payload = model_response.json()
 
-        model_rows = (
-            model_payload.get("data") or []
-        )
+        model_rows = model_payload.get("data") or []
+
+        if any(row.get("modelType") != model_type for row in model_rows):
+            raise ValueError(
+                f"VNDirect financial_models: wrong modelType for {symbol}"
+            )
 
         if not model_rows:
             result = pd.DataFrame(statement_rows)
-            result.attrs["financial_metadata"] = {"source_url": str(statement_response.url)}
+            result.attrs["financial_metadata"] = {
+                "source_url": source_url or str(statement_response.url),
+                "currency": "VND",
+                "unit_scale": 1,
+            }
             return result
 
         # -----------------------------------------------------
@@ -415,17 +462,23 @@ class VnDirectProvider:
         )
 
         # -----------------------------------------------------
-        # 4. Sắp theo thứ tự hiển thị của VNDirect
+        # 4. Sắp theo thứ tự hiển thị của VNDirect (ổn định theo kỳ & mã chỉ tiêu)
         # -----------------------------------------------------
 
-        if "displayOrder" in result.columns:
+        sort_cols = [c for c in ["fiscalDate", "displayOrder", "itemCode"] if c in result.columns]
+        if sort_cols:
             result = result.sort_values(
-                "displayOrder",
+                sort_cols,
+                ascending=[False, True, True][:len(sort_cols)],
                 na_position="last",
             )
 
         result = result.reset_index(drop=True)
-        result.attrs["financial_metadata"] = {"source_url": str(statement_response.url)}
+        result.attrs["financial_metadata"] = {
+            "source_url": source_url or str(statement_response.url),
+            "currency": "VND",
+            "unit_scale": 1,
+        }
         return result
 
     # =========================================================

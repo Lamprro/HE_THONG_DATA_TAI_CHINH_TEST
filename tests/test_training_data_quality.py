@@ -49,6 +49,19 @@ class TrainingDataQualityTests(unittest.TestCase):
         self.assertEqual(result['data'][0]['close'],580);self.assertEqual(result['unit'],'INDEX_POINTS')
         self.assertEqual(result['data'][0]['source_record'],payload['data_day'][0])
 
+    def test_invalid_index_range_reports_source_day_and_values_without_repair(self):
+        payload={'symbol':'VN30','data_day':[{'t':'2016-01-04 07:00','o':580,'h':575,'l':570,'c':576,'v':123}]}
+        with httpx.Client(transport=httpx.MockTransport(lambda r:httpx.Response(200,json=payload))) as client:
+            with self.assertRaisesRegex(ValueError, r'symbol=VN30, date=2016-01-04, open=580.0, high=575.0, low=570.0, close=576.0'):
+                index_history('VN30',date(2016,1,1),date(2016,1,31),client)
+        self.assertEqual(payload['data_day'][0]['h'],575)
+
+    def test_index_bar_on_verified_hose_closure_is_rejected(self):
+        payload={'symbol':'VNINDEX','data_day':[{'t':'2018-01-24 07:00','o':100,'h':110,'l':90,'c':105,'v':100}]}
+        with httpx.Client(transport=httpx.MockTransport(lambda r:httpx.Response(200,json=payload))) as client:
+            with self.assertRaisesRegex(ValueError, 'Known HOSE closure'):
+                index_history('VNINDEX',date(2018,1,24),date(2018,1,24),client)
+
     def test_monthly_fx_remains_native_month_end_and_no_interpolation(self):
         csv='FREQ,REF_AREA,CURRENCY,COLLECTION,TIME_PERIOD,OBS_VALUE,UNIT_MULT\nM,VN,VND,A,2024-02,24000,0\n'
         result=normalize_bis(csv,date(2024,1,1),date(2024,12,31),frequency='M')
