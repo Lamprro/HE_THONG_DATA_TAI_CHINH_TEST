@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from decimal import Decimal
 
 import httpx
 import pandas as pd
@@ -376,7 +377,7 @@ class VnDirectProvider:
             statement_payload = statement_response.json()
             page_rows = self._symbol_rows(statement_payload, symbol, "financial_statements")
             for row in page_rows:
-                if (str(row.get("modelType")) != str(model_type)
+                if (Decimal(str(row.get("modelType"))) != model_type
                         or row.get("reportType") != report_type
                         or (fiscal_date is not None and row.get("fiscalDate") != fiscal_date)):
                     raise ValueError(f"VNDirect financial_statements: wrong model/period for {symbol}")
