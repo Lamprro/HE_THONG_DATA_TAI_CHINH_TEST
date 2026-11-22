@@ -36,6 +36,22 @@ class VnDirectProvider:
             },
         )
 
+    @staticmethod
+    def _symbol_rows(payload: dict, symbol: str, dataset: str) -> list[dict]:
+        """Reject an upstream response that cannot be attributed to this ticker."""
+        rows = payload.get("data")
+        if not isinstance(rows, list):
+            raise ValueError(f"VNDirect {dataset}: data is not an array")
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError(f"VNDirect {dataset}: data contains a non-object row")
+            code = row.get("code")
+            if not isinstance(code, str) or code.strip().upper() != symbol.upper():
+                raise ValueError(
+                    f"VNDirect {dataset}: row code {code!r} does not match {symbol}"
+                )
+        return rows
+
     # =========================================================
     # MARKET DATA
     # =========================================================
@@ -74,7 +90,7 @@ class VnDirectProvider:
 
             payload = response.json()
 
-            rows = payload.get("data") or []
+            rows = self._symbol_rows(payload, symbol, "stock_prices")
 
             if not rows:
                 break
@@ -115,7 +131,9 @@ class VnDirectProvider:
         if df.empty:
             return df
 
-        return df.head(1).reset_index(drop=True)
+        if "date" not in df.columns or df["date"].isna().any():
+            raise ValueError(f"VNDirect stock_prices: missing date for {symbol}")
+        return df.sort_values("date", ascending=False).head(1).reset_index(drop=True)
 
     # =========================================================
     # COMPANY
@@ -138,7 +156,7 @@ class VnDirectProvider:
 
         payload = response.json()
 
-        rows = payload.get("data") or []
+        rows = self._symbol_rows(payload, symbol, "stocks")
 
         return pd.DataFrame(rows)
 
@@ -170,7 +188,7 @@ class VnDirectProvider:
 
         payload = response.json()
 
-        rows = payload.get("data") or []
+        rows = self._symbol_rows(payload, symbol, "financial_statements")
 
         if not rows:
             return None
@@ -226,7 +244,7 @@ class VnDirectProvider:
 
             payload = response.json()
 
-            rows = payload.get("data") or []
+            rows = self._symbol_rows(payload, symbol, "financial_statements")
 
             if not rows:
                 return None
@@ -254,7 +272,7 @@ class VnDirectProvider:
 
         payload = response.json()
 
-        rows = payload.get("data") or []
+        rows = self._symbol_rows(payload, symbol, "financial_statements")
 
         if not rows:
             return None
@@ -289,6 +307,11 @@ class VnDirectProvider:
 
             if not model_rows:
                 continue
+
+            if any(row.get("modelType") != model_type for row in model_rows):
+                raise ValueError(
+                    f"VNDirect financial_models: wrong modelType for {symbol}"
+                )
 
             model_name = str(
                 model_rows[0].get("modelTypeName") or ""
@@ -351,7 +374,12 @@ class VnDirectProvider:
             if source_url is None:
                 source_url = str(statement_response.url)
             statement_payload = statement_response.json()
-            page_rows = statement_payload.get("data") or []
+            page_rows = self._symbol_rows(statement_payload, symbol, "financial_statements")
+            for row in page_rows:
+                if (str(row.get("modelType")) != str(model_type)
+                        or row.get("reportType") != report_type
+                        or (fiscal_date is not None and row.get("fiscalDate") != fiscal_date)):
+                    raise ValueError(f"VNDirect financial_statements: wrong model/period for {symbol}")
             if not page_rows:
                 break
             statement_rows.extend(page_rows)
@@ -379,9 +407,12 @@ class VnDirectProvider:
 
         model_payload = model_response.json()
 
-        model_rows = (
-            model_payload.get("data") or []
-        )
+        model_rows = model_payload.get("data") or []
+
+        if any(row.get("modelType") != model_type for row in model_rows):
+            raise ValueError(
+                f"VNDirect financial_models: wrong modelType for {symbol}"
+            )
 
         if not model_rows:
             result = pd.DataFrame(statement_rows)

@@ -254,3 +254,7 @@ Checks run: 17 focused Python transport tests (9 training-data quality, 5 CafeF 
 3 proxy-header tests), all passed. Mock tests are separate from live Spring staging
 acceptance; the provider app never writes the business DB directly. Live receipts and
 source comparison are in the backend workspace `output/local-ai-review/index-staging-20261119`.
+
+### Chuẩn hóa giá cổ phiếu
+
+Các route QUOTE và OHLCV cổ phiếu của VNDirect, CafeF và VnStock trả contract `market_price.v1` với giá theo VND, kèm bản ghi nguồn tại `data[].source_record`. Java đọc được cả contract này và payload lịch sử. Các route chỉ số, BCTC và proxy giữ hợp đồng riêng.

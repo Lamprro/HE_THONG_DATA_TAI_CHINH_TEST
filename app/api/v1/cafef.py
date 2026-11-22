@@ -5,6 +5,11 @@ from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, Path, Query
 
+from app.core.market_normalization import (
+    MARKET_DATASETS,
+    market_contract_metadata,
+    normalize_market_records,
+)
 from app.core.serialization import dataframe_to_records, utc_now_iso
 from app.core.financial_metadata import financial_metadata
 from app.providers.cafef_provider import cafef_provider
@@ -52,6 +57,10 @@ def response(
     **meta,
 ) -> dict:
     rows = dataframe_to_records(data)
+    retrieved_at = utc_now_iso()
+    if dataset in MARKET_DATASETS:
+        rows = normalize_market_records("cafef", dataset, symbol, rows, observed_at=retrieved_at)
+        meta.update(market_contract_metadata())
     if dataset in {"balance_sheet", "income_statement", "cash_flow"}:
         meta["financial_metadata"] = financial_metadata(data, dataset, "cafef")
 
@@ -59,12 +68,13 @@ def response(
         "provider": "cafef",
         "dataset": dataset,
         "symbol": symbol,
-        "retrieved_at": utc_now_iso(),
+        "retrieved_at": retrieved_at,
         "elapsed_ms": round(
             (perf_counter() - started) * 1000,
             2,
         ),
         "count": len(rows),
+        **contract_meta,
         **meta,
         "data": rows,
     }
@@ -79,7 +89,9 @@ def response(
     tags=["cafef-market"],
     summary="Get CafeF historical OHLCV",
     description=(
-        "Historical equity market data from CafeF. "
+        "Historical equity market data from CafeF normalized to market_price.v1. "
+        "Prices and trading values use VND; the original CafeF row is retained "
+        "under source_record. "
         "Long date ranges are automatically split into smaller requests."
     ),
 )
@@ -148,7 +160,7 @@ def equity_ohlcv(
     "/equities/{symbol}/quote",
     tags=["cafef-market"],
     summary="Get latest CafeF quote",
-    description="Latest available trading session from CafeF.",
+    description="Latest available trading session normalized to market_price.v1.",
 )
 def equity_quote(
     symbol: str = Path(
