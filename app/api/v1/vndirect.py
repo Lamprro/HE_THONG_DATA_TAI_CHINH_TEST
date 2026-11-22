@@ -81,7 +81,6 @@ def response(
             2,
         ),
         "count": len(rows),
-        **contract_meta,
         **meta,
         "data": rows,
     }
