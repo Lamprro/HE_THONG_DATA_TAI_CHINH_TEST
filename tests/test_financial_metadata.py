@@ -42,6 +42,17 @@ class FinancialMetadataTests(unittest.TestCase):
         self.assertIsNone(meta["published_at"])
         self.assertEqual(meta["periods"]["2026-03-31"]["published_at"], "2026-04-20T00:00:00+00:00")
 
+    def test_period_end_is_explicit_and_publication_is_not_shared_between_periods(self):
+        df = pd.DataFrame([{"period_end": "2025-03-31"}, {"period_end": "2025-06-30"}])
+        df.attrs["financial_metadata"] = {
+            "published_at": "2025-07-21",
+            "periods": {"2025-06-30": {"publicationDate": "2025-07-20"}},
+        }
+        periods = financial_metadata(df, "balance_sheet", "vnstock")["periods"]
+        self.assertEqual(periods["2025-03-31"]["period_end"], "2025-03-31")
+        self.assertIsNone(periods["2025-03-31"]["published_at"])
+        self.assertEqual(periods["2025-06-30"]["published_at"], "2025-07-20T00:00:00+07:00")
+
     def test_report_headings_not_navigation_determine_cafef_scope(self):
         html = '<nav>Báo cáo hợp nhất</nav><h1>Báo cáo riêng lẻ</h1><span>Đơn vị: nghìn đồng</span>'
         source = cafef_metadata(html, "https://s.cafef.vn/report", "income_statement")

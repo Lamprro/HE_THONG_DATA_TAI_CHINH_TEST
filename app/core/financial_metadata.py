@@ -1,7 +1,7 @@
 """Financial metadata from explicit source fields; fiscal/created dates are not publication dates."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 import re
 import unicodedata
@@ -105,9 +105,37 @@ def financial_metadata(df, dataset: str, provider: str, *, _per_period=True) -> 
     for field in fields:
         if result[field] in (None, "UNKNOWN"):
             result["limitations"].append(f"UNVERIFIED_{field.upper()}")
-    if _per_period and df is not None and "fiscalDate" in df.columns:
-        result["periods"] = {str(period): financial_metadata(group, dataset, provider, _per_period=False)
-                             for period, group in df.groupby("fiscalDate", sort=True)}
+    if _per_period and df is not None:
+        period_field = next((name for name in ("fiscalDate", "fiscal_date", "period_end")
+                             if name in df.columns), None)
+        if period_field:
+            groups = {}
+            for index, value in enumerate(df[period_field]):
+                try:
+                    end = date.fromisoformat(str(value)[:10]).isoformat()
+                except ValueError:
+                    continue
+                groups.setdefault(end, []).append(index)
+            if groups:
+                result["periods"] = {}
+                supplied_periods = supplied.get("periods") or {}
+                for end, indices in sorted(groups.items()):
+                    rows_for_period = df.iloc[indices].copy()
+                    rows_for_period.attrs["financial_metadata"] = {
+                        **{key: value for key, value in supplied.items() if key not in {
+                            "periods", "published_at", "publishedAt", "announcementDate", "publicationDate",
+                            "revisionPublishedAt", "restatementPublishedAt", "isRestated", "is_restated"
+                        }},
+                        **(supplied_periods.get(end) or {}),
+                    }
+                    if len(groups) == 1 and len(indices) == len(df):
+                        rows_for_period.attrs["financial_metadata"] = {
+                            **supplied, **(supplied_periods.get(end) or {})
+                        }
+                    result["periods"][end] = {
+                        **financial_metadata(rows_for_period, dataset, provider, _per_period=False),
+                        "period_end": end,
+                    }
     return result
 
 
